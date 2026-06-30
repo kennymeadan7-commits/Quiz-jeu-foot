@@ -10,7 +10,7 @@ export type BulletinLine = {
   composition: number | null
   subjectAverage: number | null
   total: number | null
-  sonne?: string
+  rank?: string
   appreciation?: string
   visa?: string
 }
@@ -87,7 +87,7 @@ export function generateBulletinPdf(payload: BulletinPayload): void {
 
   autoTable(doc, {
     startY: 100,
-    head: [['Matiere', 'Moy Inter', 'Dev1', 'Dev2', 'Moi/20', 'Coef.', 'Moy. Coeff', 'Sonne', 'Apprec.', 'Visa']],
+    head: [['Matiere', 'Moy Inter', 'Dev1', 'Dev2', 'Moi/20', 'Coef.', 'Moy. Coeff', 'Rang', 'Apprec.', 'Visa']],
     body: payload.lines.map((line) => [
       line.subject,
       line.interroAverage === null ? '-' : line.interroAverage.toFixed(2),
@@ -96,7 +96,7 @@ export function generateBulletinPdf(payload: BulletinPayload): void {
       line.subjectAverage === null ? '-' : line.subjectAverage.toFixed(2),
       line.coefficient.toString(),
       line.total === null ? '-' : line.total.toFixed(2),
-      line.sonne ?? '',
+      line.rank ?? '',
       line.appreciation ?? '',
       line.visa ?? '',
     ]),

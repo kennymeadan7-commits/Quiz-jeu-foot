@@ -45,7 +45,7 @@ type SemesterReportLine = {
   composition: number | null
   subjectAverage: number | null
   total: number | null
-  sonne: string
+  rank: string
   appreciation: string
   visa: string
 }
@@ -488,7 +488,7 @@ function App() {
   const missingNotesCount = grades.filter((grade) => grade.grade === null).length
 
   function buildSemesterReportLines(studentId: string, period: Period): SemesterReportLine[] {
-    return subjects.map((subject) => {
+    const lines = subjects.map((subject) => {
       const subjectGrades = grades.filter(
         (row) => row.studentId === studentId && row.period === period && row.subjectId === subject.id,
       )
@@ -544,11 +544,22 @@ function App() {
         composition,
         subjectAverage,
         total,
-        sonne: '',
+        rank: '-',
         appreciation: subjectAverage === null ? '' : subjectAverage >= 14 ? 'Très bien' : subjectAverage >= 10 ? 'Assez bien' : 'Insuff.',
         visa: '',
       }
     })
+
+    const ranked = lines.filter((line) => line.total !== null).sort((a, b) => (b.total ?? 0) - (a.total ?? 0))
+    let currentRank = 0
+    let previousTotal: number | null = null
+    ranked.forEach((line, index) => {
+      if (previousTotal === null || line.total !== previousTotal) currentRank = index + 1
+      previousTotal = line.total
+      line.rank = String(currentRank)
+    })
+
+    return lines
   }
 
   function classLabel(classId: string): string {
@@ -1709,7 +1720,7 @@ function App() {
                           <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Moi/20</th>
                           <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Coef.</th>
                           <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Moy. Coeff</th>
-                          <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Sonné</th>
+                          <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Rang</th>
                           <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Appréc.</th>
                           <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Visa</th>
                         </tr>
@@ -1734,7 +1745,7 @@ function App() {
                             <td className="border border-gray-800 px-1 py-1 text-center">
                               {line.total === null ? '-' : line.total.toFixed(2)}
                             </td>
-                            <td className="border border-gray-800 px-1 py-1 text-center">{line.sonne}</td>
+                            <td className="border border-gray-800 px-1 py-1 text-center">{line.rank}</td>
                             <td className="border border-gray-800 px-1 py-1 text-center">{line.appreciation}</td>
                             <td className="border border-gray-800 px-1 py-1 text-center">{line.visa}</td>
                           </tr>
