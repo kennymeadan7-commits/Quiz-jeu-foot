@@ -10,7 +10,7 @@ import {
 } from './utils/grades'
 
 type Tab = 'dashboard' | 'classes' | 'students' | 'subjects' | 'grades' | 'reports'
-type Period = 'S1' | 'S2'
+type Period = 'S1' | 'S2' | 'Annuel'
 type AssessmentType = 'Interrogation' | 'Devoir'
 
 type ClassItem = { id: string; name: string; level: string }
@@ -36,7 +36,11 @@ type StudentRankingRow = {
 }
 type StudentSourceTable = 'eleves' | 'students'
 
-const periodOptions: Period[] = ['S1', 'S2']
+const periodOptions: Array<{ value: Period; label: string }> = [
+  { value: 'S1', label: 'Semestre 1' },
+  { value: 'S2', label: 'Semestre 2' },
+  { value: 'Annuel', label: 'Annuel' },
+]
 const assessmentTypeOptions: AssessmentType[] = ['Interrogation', 'Devoir']
 
 const modules: { key: Tab; name: string; description: string }[] = [
@@ -82,6 +86,13 @@ const demoGrades: GradeItem[] = [
 
 function normalizeAssessmentType(value: string | null | undefined): AssessmentType {
   return value?.toLowerCase() === 'devoir' ? 'Devoir' : 'Interrogation'
+}
+
+function getPeriodLabel(period: Period | string): string {
+  if (period === 'S1') return 'Semestre 1'
+  if (period === 'S2') return 'Semestre 2'
+  if (period === 'Annuel') return 'Annuel'
+  return period
 }
 
 function getErrorMessage(error: unknown): string {
@@ -835,7 +846,7 @@ function App() {
     generateBulletinPdf({
       studentFullName: `${student.firstName} ${student.lastName}`,
       className: studentClass ? `${studentClass.name} (${studentClass.level})` : 'N/A',
-      period: reportPeriod,
+      period: getPeriodLabel(reportPeriod),
       average: avgRow?.weighted_average ?? null,
       rank: rankRow?.rank_in_class ?? null,
       missingPolicy,
@@ -873,8 +884,8 @@ function App() {
             onChange={(event) => setSelectedPeriod(event.target.value as Period)}
           >
             {periodOptions.map((period) => (
-              <option key={period} value={period}>
-                {period}
+              <option key={period.value} value={period.value}>
+                {period.label}
               </option>
             ))}
           </select>
@@ -924,14 +935,14 @@ function App() {
           <div className="space-y-6">
             <h2 className="text-xl font-semibold text-slate-900">Dashboard</h2>
             <SimpleTable
-              title={`Moyennes de classe (${selectedPeriod})`}
+              title={`Moyennes de classe (${getPeriodLabel(selectedPeriod)})`}
               headers={['Classe', 'Moyenne']}
               rows={dashboardClassAverages.map((row) => [classLabel(row.class_id), `${row.class_average.toFixed(2)} / 20`])}
               emptyText="Aucune moyenne de classe disponible."
             />
 
             <SimpleTable
-              title={`Moyennes élèves (${selectedPeriod})`}
+              title={`Moyennes élèves (${getPeriodLabel(selectedPeriod)})`}
               headers={['Élève', 'Classe', 'Moyenne']}
               rows={dashboardStudentAverages.map((row) => [
                 studentLabel(row.student_id),
@@ -942,7 +953,7 @@ function App() {
             />
 
             <SimpleTable
-              title={`Classement (${selectedPeriod})`}
+              title={`Classement (${getPeriodLabel(selectedPeriod)})`}
               headers={['Rang', 'Élève', 'Classe', 'Moyenne']}
               rows={dashboardRanking
                 .sort((a, b) => a.rank_in_class - b.rank_in_class)
@@ -1238,8 +1249,8 @@ function App() {
                 onChange={(event) => setNewGradePeriod(event.target.value as Period)}
               >
                 {periodOptions.map((period) => (
-                  <option key={period} value={period}>
-                    {period}
+                  <option key={period.value} value={period.value}>
+                    {period.label}
                   </option>
                 ))}
               </select>
@@ -1342,8 +1353,8 @@ function App() {
                             }
                           >
                             {periodOptions.map((period) => (
-                              <option key={period} value={period}>
-                                {period}
+                              <option key={period.value} value={period.value}>
+                                {period.label}
                               </option>
                             ))}
                           </select>
@@ -1437,8 +1448,8 @@ function App() {
                 onChange={(event) => setReportPeriod(event.target.value as Period)}
               >
                 {periodOptions.map((period) => (
-                  <option key={period} value={period}>
-                    {period}
+                  <option key={period.value} value={period.value}>
+                    {period.label}
                   </option>
                 ))}
               </select>
