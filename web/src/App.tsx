@@ -5,11 +5,19 @@ import { generateBulletinPdf } from './lib/pdf/bulletin-generator'
 
 type Tab = 'dashboard' | 'classes' | 'students' | 'subjects' | 'grades' | 'reports'
 type Period = 'T1' | 'T2' | 'T3' | 'S1' | 'S2' | 'Annuel'
+type AssessmentType = 'Interrogation' | 'Devoir'
 
 type ClassItem = { id: string; name: string; level: string }
 type StudentItem = { id: string; firstName: string; lastName: string; classId: string }
 type SubjectItem = { id: string; name: string; coefficient: number }
-type GradeItem = { id: string; studentId: string; subjectId: string; period: string; grade: number | null }
+type GradeItem = {
+  id: string
+  studentId: string
+  subjectId: string
+  period: string
+  assessmentType: AssessmentType
+  grade: number | null
+}
 type ClassTemplate = { value: string; name: string; level: string }
 type ClassAverageRow = { class_id: string; period: string; class_average: number }
 type StudentAverageRow = { student_id: string; class_id: string; period: string; weighted_average: number }
@@ -22,6 +30,7 @@ type StudentRankingRow = {
 }
 
 const periodOptions: Period[] = ['T1', 'T2', 'T3', 'S1', 'S2', 'Annuel']
+const assessmentTypeOptions: AssessmentType[] = ['Interrogation', 'Devoir']
 
 const modules: { key: Tab; name: string; description: string }[] = [
   { key: 'dashboard', name: 'Dashboard', description: 'Vue globale avec moyennes et classement.' },
@@ -58,11 +67,15 @@ const demoSubjects: SubjectItem[] = [
   { id: 'sub-2', name: 'Français', coefficient: 3 },
 ]
 const demoGrades: GradeItem[] = [
-  { id: 'grd-1', studentId: 'std-1', subjectId: 'sub-1', period: 'T1', grade: 14 },
-  { id: 'grd-2', studentId: 'std-1', subjectId: 'sub-2', period: 'T1', grade: 12 },
-  { id: 'grd-3', studentId: 'std-2', subjectId: 'sub-1', period: 'T1', grade: 10 },
-  { id: 'grd-4', studentId: 'std-2', subjectId: 'sub-2', period: 'T1', grade: 11 },
+  { id: 'grd-1', studentId: 'std-1', subjectId: 'sub-1', period: 'T1', assessmentType: 'Interrogation', grade: 14 },
+  { id: 'grd-2', studentId: 'std-1', subjectId: 'sub-2', period: 'T1', assessmentType: 'Devoir', grade: 12 },
+  { id: 'grd-3', studentId: 'std-2', subjectId: 'sub-1', period: 'T1', assessmentType: 'Interrogation', grade: 10 },
+  { id: 'grd-4', studentId: 'std-2', subjectId: 'sub-2', period: 'T1', assessmentType: 'Devoir', grade: 11 },
 ]
+
+function normalizeAssessmentType(value: string | null | undefined): AssessmentType {
+  return value?.toLowerCase() === 'devoir' ? 'Devoir' : 'Interrogation'
+}
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
@@ -140,11 +153,13 @@ function App() {
   const [newGradeStudentId, setNewGradeStudentId] = useState('std-1')
   const [newGradeSubjectId, setNewGradeSubjectId] = useState('sub-1')
   const [newGradePeriod, setNewGradePeriod] = useState<Period>('T1')
+  const [newGradeAssessmentType, setNewGradeAssessmentType] = useState<AssessmentType>('Interrogation')
   const [newGradeValue, setNewGradeValue] = useState('10')
   const [newGradeMissing, setNewGradeMissing] = useState(false)
 
   const [reportStudentId, setReportStudentId] = useState('std-1')
   const [reportPeriod, setReportPeriod] = useState<Period>('T1')
+  const [reportSignerFullName, setReportSignerFullName] = useState('')
 
   const [editingClass, setEditingClass] = useState<Record<string, { name: string; level: string }>>({})
   const [editingStudent, setEditingStudent] = useState<
@@ -152,7 +167,17 @@ function App() {
   >({})
   const [editingSubject, setEditingSubject] = useState<Record<string, { name: string; coefficient: string }>>({})
   const [editingGrade, setEditingGrade] = useState<
-    Record<string, { studentId: string; subjectId: string; period: string; grade: string; missing: boolean }>
+    Record<
+      string,
+      {
+        studentId: string
+        subjectId: string
+        period: string
+        assessmentType: AssessmentType
+        grade: string
+        missing: boolean
+      }
+    >
   >({})
 
   async function loadRemoteData(period: Period) {
@@ -166,7 +191,10 @@ function App() {
         supabase.from('students').select('id, first_name, last_name, class_id').order('last_name'),
         supabase.from('subjects').select('id, name').order('name'),
         supabase.from('class_subjects').select('subject_id, coefficient'),
-        supabase.from('grades').select('id, student_id, subject_id, period, grade').order('created_at'),
+        supabase
+          .from('grades')
+          .select('id, student_id, subject_id, period, assessment_label, grade')
+          .order('created_at'),
         supabase.from('app_settings').select('missing_grade_policy').eq('id', true).maybeSingle(),
         supabase.from('v_class_averages').select('class_id, period, class_average').eq('period', period),
         supabase.from('v_student_averages').select('student_id, class_id, period, weighted_average').eq('period', period),
@@ -219,6 +247,7 @@ function App() {
         studentId: row.student_id,
         subjectId: row.subject_id,
         period: row.period,
+        assessmentType: normalizeAssessmentType(row.assessment_label),
         grade: row.grade === null ? null : Number(row.grade),
       })),
     )
@@ -595,6 +624,7 @@ function App() {
         student_id: newGradeStudentId,
         subject_id: newGradeSubjectId,
         period: newGradePeriod,
+        assessment_label: newGradeAssessmentType,
         grade: newGradeMissing ? null : numericValue,
       })
       if (error) throw error
@@ -602,6 +632,7 @@ function App() {
       setActionMessage('Note ajoutée.')
       setNewGradeValue('10')
       setNewGradeMissing(false)
+      setNewGradeAssessmentType('Interrogation')
     } catch (error) {
       setActionMessage(`Erreur ajout note: ${getErrorMessage(error)}`)
     } finally {
@@ -626,6 +657,7 @@ function App() {
           student_id: row.studentId,
           subject_id: row.subjectId,
           period: row.period,
+          assessment_label: row.assessmentType,
           grade: row.missing ? null : numericValue,
         })
         .eq('id', gradeId)
@@ -681,19 +713,26 @@ function App() {
       return
     }
     const studentClass = classes.find((item) => item.id === student.classId)
-    const lines = subjects.map((subject) => {
-      const grade = grades.find(
-        (row) =>
-          row.studentId === student.id &&
-          row.subjectId === subject.id &&
-          row.period === reportPeriod,
-      )
-      return {
-        subject: subject.name,
-        coefficient: subject.coefficient,
-        grade: grade?.grade ?? null,
-      }
-    })
+    const studentPeriodGrades = grades.filter(
+      (row) => row.studentId === student.id && row.period === reportPeriod,
+    )
+    const lines =
+      studentPeriodGrades.length > 0
+        ? studentPeriodGrades.map((grade) => {
+            const subject = subjects.find((item) => item.id === grade.subjectId)
+            return {
+              subject: subject?.name ?? grade.subjectId,
+              assessmentType: grade.assessmentType,
+              coefficient: subject?.coefficient ?? 1,
+              grade: grade.grade,
+            }
+          })
+        : subjects.map((subject) => ({
+            subject: subject.name,
+            assessmentType: 'Interrogation' as AssessmentType,
+            coefficient: subject.coefficient,
+            grade: null,
+          }))
 
     const avgRow = dashboardStudentAverages.find(
       (row) => row.student_id === student.id && row.period === reportPeriod,
@@ -709,6 +748,7 @@ function App() {
       average: avgRow?.weighted_average ?? null,
       rank: rankRow?.rank_in_class ?? null,
       missingPolicy,
+      signerFullName: reportSignerFullName.trim(),
       lines,
     })
     setActionMessage('Bulletin exporté en PDF.')
@@ -1078,7 +1118,7 @@ function App() {
         {activeTab === 'grades' && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-slate-900">CRUD Notes</h2>
-            <form className="grid gap-3 md:grid-cols-6" onSubmit={(event) => void addGrade(event)}>
+            <form className="grid gap-3 md:grid-cols-7" onSubmit={(event) => void addGrade(event)}>
               <select
                 className="rounded-lg border border-slate-300 px-3 py-2"
                 value={newGradeStudentId}
@@ -1109,6 +1149,17 @@ function App() {
                 {periodOptions.map((period) => (
                   <option key={period} value={period}>
                     {period}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="rounded-lg border border-slate-300 px-3 py-2"
+                value={newGradeAssessmentType}
+                onChange={(event) => setNewGradeAssessmentType(event.target.value as AssessmentType)}
+              >
+                {assessmentTypeOptions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
                   </option>
                 ))}
               </select>
@@ -1143,6 +1194,7 @@ function App() {
                     <th className="px-3 py-2">Élève</th>
                     <th className="px-3 py-2">Matière</th>
                     <th className="px-3 py-2">Période</th>
+                    <th className="px-3 py-2">Type</th>
                     <th className="px-3 py-2">Note</th>
                     <th className="px-3 py-2">Actions</th>
                   </tr>
@@ -1153,6 +1205,7 @@ function App() {
                       studentId: row.studentId,
                       subjectId: row.subjectId,
                       period: row.period,
+                      assessmentType: row.assessmentType,
                       grade: row.grade?.toString() ?? '',
                       missing: row.grade === null,
                     }
@@ -1200,6 +1253,27 @@ function App() {
                             {periodOptions.map((period) => (
                               <option key={period} value={period}>
                                 {period}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            className="w-full rounded border border-slate-300 px-2 py-1"
+                            value={edit.assessmentType}
+                            onChange={(event) =>
+                              setEditingGrade((prev) => ({
+                                ...prev,
+                                [row.id]: {
+                                  ...edit,
+                                  assessmentType: event.target.value as AssessmentType,
+                                },
+                              }))
+                            }
+                          >
+                            {assessmentTypeOptions.map((item) => (
+                              <option key={item} value={item}>
+                                {item}
                               </option>
                             ))}
                           </select>
@@ -1254,7 +1328,7 @@ function App() {
         {activeTab === 'reports' && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-slate-900">Export Bulletin PDF</h2>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-4">
               <select
                 className="rounded-lg border border-slate-300 px-3 py-2"
                 value={reportStudentId}
@@ -1277,13 +1351,20 @@ function App() {
                   </option>
                 ))}
               </select>
+              <input
+                className="rounded-lg border border-slate-300 px-3 py-2"
+                placeholder="Nom et prénom du signataire"
+                value={reportSignerFullName}
+                onChange={(event) => setReportSignerFullName(event.target.value)}
+              />
               <button className="rounded-lg bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-500" onClick={exportBulletin}>
                 Exporter PDF
               </button>
             </div>
 
             <p className="text-sm text-slate-600">
-              Le bulletin inclut : notes par matière, coefficients, moyenne pondérée et rang de classe.
+              Le bulletin inclut : type d'évaluation (interrogation/devoir), notes, coefficients, moyenne, rang, puis en bas :
+              nom et prénom suivi de la signature.
             </p>
           </div>
         )}
