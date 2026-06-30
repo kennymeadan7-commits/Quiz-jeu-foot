@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { hasSupabaseConfig, supabase } from './lib/supabase/client'
-import { calculateWeightedAverage, type MissingGradePolicy } from './domain/services/average-calculator'
+import { type MissingGradePolicy } from './domain/services/average-calculator'
 import { generateBulletinPdf } from './lib/pdf/bulletin-generator'
+import {
+  calculerMoyenneGenerale,
+  calculerMoyenneMatiere,
+  type MoyenneMatiere,
+  type Note,
+} from './utils/grades'
 
 type Tab = 'dashboard' | 'classes' | 'students' | 'subjects' | 'grades' | 'reports'
 type Period = 'T1' | 'T2' | 'T3' | 'S1' | 'S2' | 'Annuel'
@@ -28,6 +34,7 @@ type StudentRankingRow = {
   weighted_average: number
   rank_in_class: number
 }
+type StudentSourceTable = 'eleves' | 'students'
 
 const periodOptions: Period[] = ['T1', 'T2', 'T3', 'S1', 'S2', 'Annuel']
 const assessmentTypeOptions: AssessmentType[] = ['Interrogation', 'Devoir']
@@ -127,6 +134,7 @@ function App() {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [studentSourceTable, setStudentSourceTable] = useState<StudentSourceTable>('eleves')
 
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('T1')
@@ -180,15 +188,53 @@ function App() {
     >
   >({})
 
+  const isLoading = loading
+  const error = errorMessage
+
+  async function fetchStudentsFromSupabase(): Promise<{
+    sourceTable: StudentSourceTable
+    rows: StudentItem[]
+  }> {
+    if (!supabase) return { sourceTable: 'eleves', rows: [] }
+
+    const elevesRes = await supabase.from('eleves').select('*').order('nom')
+    if (!elevesRes.error) {
+      const rows = (elevesRes.data ?? []).map((row) => {
+        const r = row as Record<string, unknown>
+        return {
+          id: String(r.id ?? ''),
+          firstName: String(r.prenom ?? r.first_name ?? r.firstname ?? ''),
+          lastName: String(r.nom ?? r.last_name ?? r.lastname ?? ''),
+          classId: String(r.classe_id ?? r.class_id ?? ''),
+        } satisfies StudentItem
+      })
+      return { sourceTable: 'eleves', rows }
+    }
+
+    const studentsRes = await supabase.from('students').select('*').order('last_name')
+    if (studentsRes.error) throw studentsRes.error
+    const rows = (studentsRes.data ?? []).map((row) => {
+      const r = row as Record<string, unknown>
+      return {
+        id: String(r.id ?? ''),
+        firstName: String(r.first_name ?? r.prenom ?? r.firstname ?? ''),
+        lastName: String(r.last_name ?? r.nom ?? r.lastname ?? ''),
+        classId: String(r.class_id ?? r.classe_id ?? ''),
+      } satisfies StudentItem
+    })
+    return { sourceTable: 'students', rows }
+  }
+
   async function loadRemoteData(period: Period) {
     if (!supabase) return
     setLoading(true)
     setErrorMessage(null)
 
-    const [classesRes, studentsRes, subjectsRes, classSubjectsRes, gradesRes, settingsRes, classAvgRes, studentAvgRes, rankingRes] =
+    const studentsPromise = fetchStudentsFromSupabase()
+    const [classesRes, studentsData, subjectsRes, classSubjectsRes, gradesRes, settingsRes, classAvgRes, studentAvgRes, rankingRes] =
       await Promise.all([
         supabase.from('classes').select('id, name, level').order('name'),
-        supabase.from('students').select('id, first_name, last_name, class_id').order('last_name'),
+        studentsPromise,
         supabase.from('subjects').select('id, name').order('name'),
         supabase.from('class_subjects').select('subject_id, coefficient'),
         supabase
@@ -205,7 +251,6 @@ function App() {
       ])
 
     if (classesRes.error) throw classesRes.error
-    if (studentsRes.error) throw studentsRes.error
     if (subjectsRes.error) throw subjectsRes.error
     if (classSubjectsRes.error) throw classSubjectsRes.error
     if (gradesRes.error) throw gradesRes.error
@@ -226,14 +271,8 @@ function App() {
         level: row.level ?? '-',
       })),
     )
-    setStudents(
-      (studentsRes.data ?? []).map((row) => ({
-        id: row.id,
-        firstName: row.first_name,
-        lastName: row.last_name,
-        classId: row.class_id,
-      })),
-    )
+    setStudentSourceTable(studentsData.sourceTable)
+    setStudents(studentsData.rows)
     setSubjects(
       (subjectsRes.data ?? []).map((row) => ({
         id: row.id,
@@ -322,14 +361,41 @@ function App() {
   const localStudentAverages = useMemo(() => {
     const rows: StudentAverageRow[] = []
     students.forEach((student) => {
-      const weighted = grades
-        .filter((grade) => grade.studentId === student.id && grade.period === selectedPeriod)
-        .map((grade) => ({
-          grade: grade.grade,
-          coefficient: subjects.find((subject) => subject.id === grade.subjectId)?.coefficient ?? 1,
-        }))
+      const moyennesParMatiere: MoyenneMatiere[] = subjects.map((subject) => {
+        const notesMatiere: Note[] = grades
+          .filter(
+            (grade) =>
+              grade.studentId === student.id &&
+              grade.period === selectedPeriod &&
+              grade.subjectId === subject.id,
+          )
+          .flatMap((grade) => {
+            if (grade.grade === null) {
+              if (missingPolicy === 'zero') {
+                return [
+                  {
+                    valeur: 0,
+                    type: grade.assessmentType === 'Interrogation' ? 'interro' : 'devoir',
+                  } satisfies Note,
+                ]
+              }
+              return []
+            }
+            return [
+              {
+                valeur: grade.grade,
+                type: grade.assessmentType === 'Interrogation' ? 'interro' : 'devoir',
+              } satisfies Note,
+            ]
+          })
 
-      const avg = calculateWeightedAverage(weighted, missingPolicy)
+        return {
+          moyenne: calculerMoyenneMatiere(notesMatiere),
+          coefficient: subject.coefficient,
+        }
+      })
+
+      const avg = calculerMoyenneGenerale(moyennesParMatiere)
       if (avg === null) return
       rows.push({
         student_id: student.id,
@@ -358,11 +424,11 @@ function App() {
 
   const localRanking = useMemo(() => rankRows(localStudentAverages), [localStudentAverages])
 
-  const dashboardClassAverages: ClassAverageRow[] =
-    classAveragesView.length > 0 ? classAveragesView : localClassAverages
-  const dashboardStudentAverages: StudentAverageRow[] =
-    studentAveragesView.length > 0 ? studentAveragesView : localStudentAverages
-  const dashboardRanking: StudentRankingRow[] = rankingView.length > 0 ? rankingView : localRanking
+  const dashboardClassAverages: ClassAverageRow[] = isRemoteMode ? classAveragesView : localClassAverages
+  const dashboardStudentAverages: StudentAverageRow[] = isRemoteMode
+    ? studentAveragesView
+    : localStudentAverages
+  const dashboardRanking: StudentRankingRow[] = isRemoteMode ? rankingView : localRanking
 
   const headlineAverage = dashboardClassAverages.length > 0 ? `${dashboardClassAverages[0].class_average.toFixed(2)} / 20` : '-- / 20'
   const missingNotesCount = grades.filter((grade) => grade.grade === null).length
@@ -452,7 +518,11 @@ function App() {
         const { error: gradesErr } = await supabase.from('grades').delete().in('student_id', studentIds)
         if (gradesErr) throw gradesErr
       }
-      const { error: studentsErr } = await supabase.from('students').delete().eq('class_id', classId)
+      const studentClassColumn = studentSourceTable === 'eleves' ? 'classe_id' : 'class_id'
+      const { error: studentsErr } = await supabase
+        .from(studentSourceTable)
+        .delete()
+        .eq(studentClassColumn, classId)
       if (studentsErr) throw studentsErr
       const { error: relErr } = await supabase.from('class_subjects').delete().eq('class_id', classId)
       if (relErr) throw relErr
@@ -472,12 +542,21 @@ function App() {
     if (!newStudentFirstName.trim() || !newStudentLastName.trim() || !newStudentClassId || !supabase) return
     setSubmitting(true)
     try {
-      const { error } = await supabase.from('students').insert({
-        first_name: newStudentFirstName.trim(),
-        last_name: newStudentLastName.trim(),
-        class_id: newStudentClassId,
-      })
-      if (error) throw error
+      if (studentSourceTable === 'eleves') {
+        const { error } = await supabase.from('eleves').insert({
+          prenom: newStudentFirstName.trim(),
+          nom: newStudentLastName.trim(),
+          classe_id: newStudentClassId,
+        })
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('students').insert({
+          first_name: newStudentFirstName.trim(),
+          last_name: newStudentLastName.trim(),
+          class_id: newStudentClassId,
+        })
+        if (error) throw error
+      }
       await loadRemoteData(selectedPeriod)
       setNewStudentFirstName('')
       setNewStudentLastName('')
@@ -494,15 +573,27 @@ function App() {
     if (!row || !supabase) return
     setSubmitting(true)
     try {
-      const { error } = await supabase
-        .from('students')
-        .update({
-          first_name: row.firstName,
-          last_name: row.lastName,
-          class_id: row.classId,
-        })
-        .eq('id', studentId)
-      if (error) throw error
+      if (studentSourceTable === 'eleves') {
+        const { error } = await supabase
+          .from('eleves')
+          .update({
+            prenom: row.firstName,
+            nom: row.lastName,
+            classe_id: row.classId,
+          })
+          .eq('id', studentId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase
+          .from('students')
+          .update({
+            first_name: row.firstName,
+            last_name: row.lastName,
+            class_id: row.classId,
+          })
+          .eq('id', studentId)
+        if (error) throw error
+      }
       await loadRemoteData(selectedPeriod)
       setActionMessage('Élève modifié.')
       setEditingStudent((prev) => {
@@ -521,7 +612,7 @@ function App() {
     if (!supabase) return
     setSubmitting(true)
     try {
-      const { error } = await supabase.from('students').delete().eq('id', studentId)
+      const { error } = await supabase.from(studentSourceTable).delete().eq('id', studentId)
       if (error) throw error
       await loadRemoteData(selectedPeriod)
       setActionMessage('Élève supprimé.')
@@ -767,7 +858,7 @@ function App() {
       </header>
 
       <section className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Meilleure moyenne classe" value={loading ? '...' : headlineAverage} />
+        <StatCard label="Meilleure moyenne classe" value={isLoading ? '...' : headlineAverage} />
         <StatCard label="Élèves" value={String(students.length)} />
         <StatCard label="Notes manquantes" value={String(missingNotesCount)} />
         <StatCard label="Source" value={isRemoteMode ? 'Supabase' : 'Local'} />
@@ -827,7 +918,7 @@ function App() {
 
       <section className="mb-8 rounded-2xl bg-white/95 p-5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
         {actionMessage ? <p className="mb-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{actionMessage}</p> : null}
-        {errorMessage ? <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">{errorMessage}</p> : null}
+        {error ? <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">{error}</p> : null}
 
         {activeTab === 'dashboard' && (
           <div className="space-y-6">

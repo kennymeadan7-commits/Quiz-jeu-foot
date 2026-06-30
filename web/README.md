@@ -22,6 +22,9 @@ Ensuite, ouvre l'URL affichée dans le terminal (en général : `http://localhos
 Créer `web/.env.local` :
 
 ```env
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxxxxxxxxxxx
+
 VITE_SUPABASE_URL=https://your-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
@@ -30,6 +33,8 @@ Sans ces variables, l'application démarre quand même mais en mode local sans d
 
 Avec ces variables, les formulaires CRUD (classes, élèves, matières, notes)
 écrivent et suppriment réellement les données dans Supabase.
+La récupération des élèves lit d'abord la table `eleves` (si disponible),
+avec fallback automatique vers `students`.
 
 Le formulaire d'ajout de classe propose désormais une liste prédéfinie
 (6e A, 6e B, ..., Terminale A/B) à sélectionner.
