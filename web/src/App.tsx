@@ -900,62 +900,57 @@ function App() {
         <StatCard label="Source" value={isRemoteMode ? 'Supabase' : 'Local'} />
       </section>
 
-      <section className="mb-6 rounded-2xl bg-white/90 p-5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-slate-700">Semestre :</label>
-          <select
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            value={selectedPeriod}
-            onChange={(event) => setSelectedPeriod(event.target.value as Period)}
-          >
-            {periodOptions.map((period) => (
-              <option key={period.value} value={period.value}>
-                {period.label}
-              </option>
+      <section className="mb-8 grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+        <aside className="rounded-2xl bg-white/95 p-4 shadow-lg ring-1 ring-slate-200 backdrop-blur lg:sticky lg:top-6 lg:h-fit">
+          <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Menu latéral</h2>
+          <nav className="space-y-2">
+            {modules.map((module) => (
+              <button
+                key={module.key}
+                type="button"
+                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-medium transition ${
+                  activeTab === module.key
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+                onClick={() => navigate(tabRoutes[module.key])}
+              >
+                <span>{module.name}</span>
+                <span aria-hidden="true">›</span>
+              </button>
             ))}
-          </select>
+          </nav>
+        </aside>
 
-          <label className="ml-2 text-sm font-medium text-slate-700">Note manquante :</label>
-          <select
-            className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            value={missingPolicy}
-            onChange={(event) => void updateMissingPolicy(event.target.value as MissingGradePolicy)}
-          >
-            <option value="ignore">ignore</option>
-            <option value="zero">zero</option>
-          </select>
-        </div>
-      </section>
+        <div className="space-y-4">
+          <section className="rounded-2xl bg-white/90 p-5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="text-sm font-medium text-slate-700">Semestre :</label>
+              <select
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={selectedPeriod}
+                onChange={(event) => setSelectedPeriod(event.target.value as Period)}
+              >
+                {periodOptions.map((period) => (
+                  <option key={period.value} value={period.value}>
+                    {period.label}
+                  </option>
+                ))}
+              </select>
 
-      <section className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {modules.map((module) => (
-          <article
-            key={module.key}
-            className={`rounded-2xl p-5 shadow-md ring-1 transition ${
-              activeTab === module.key
-                ? 'bg-gradient-to-br from-indigo-50 to-blue-50 ring-indigo-300 shadow-indigo-100'
-                : 'bg-white ring-slate-200 hover:-translate-y-0.5 hover:shadow-lg'
-            }`}
-          >
-            <div className="mb-4 h-1.5 w-12 rounded-full bg-indigo-500/80" />
-            <h3 className="text-lg font-semibold text-slate-900">{module.name}</h3>
-            <button
-              type="button"
-              className={`mt-6 rounded-lg px-4 py-2 text-sm font-medium text-white ${
-                activeTab === module.key ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-slate-900 hover:bg-slate-700'
-              }`}
-              onClick={() => {
-                const route = tabRoutes[module.key]
-                navigate(route)
-              }}
-            >
-              Ouvrir
-            </button>
-          </article>
-        ))}
-      </section>
+              <label className="ml-2 text-sm font-medium text-slate-700">Note manquante :</label>
+              <select
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                value={missingPolicy}
+                onChange={(event) => void updateMissingPolicy(event.target.value as MissingGradePolicy)}
+              >
+                <option value="ignore">ignore</option>
+                <option value="zero">zero</option>
+              </select>
+            </div>
+          </section>
 
-      <section className="mb-8 rounded-2xl bg-white/95 p-5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+          <section className="rounded-2xl bg-white/95 p-5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
         {actionMessage ? <p className="mb-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{actionMessage}</p> : null}
         {error ? <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">{error}</p> : null}
 
@@ -1452,7 +1447,7 @@ function App() {
           </div>
         )}
 
-        {activeTab === 'reports' && (
+            {activeTab === 'reports' && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-slate-900">Export Bulletin PDF</h2>
             <div className="grid gap-3 md:grid-cols-4">
@@ -1490,7 +1485,9 @@ function App() {
             </div>
 
           </div>
-        )}
+            )}
+          </section>
+        </div>
       </section>
     </main>
   )
