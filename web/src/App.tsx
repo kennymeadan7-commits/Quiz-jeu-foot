@@ -40,9 +40,14 @@ type SemesterReportLine = {
   subject: string
   coefficient: number
   interroAverage: number | null
+  devoir1: number | null
+  devoir2: number | null
   composition: number | null
   subjectAverage: number | null
   total: number | null
+  sonne: string
+  appreciation: string
+  visa: string
 }
 
 const periodOptions: Array<{ value: Period; label: string }> = [
@@ -501,7 +506,7 @@ function App() {
       const interroValues = normalized
         .filter((entry) => entry.type === 'Interrogation')
         .map((entry) => entry.value)
-      const compositionValues = normalized
+      const devoirValues = normalized
         .filter((entry) => entry.type === 'Devoir')
         .map((entry) => entry.value)
 
@@ -510,10 +515,13 @@ function App() {
           ? roundToTwo(interroValues.reduce((acc, value) => acc + value, 0) / interroValues.length)
           : null
 
-      // Plusieurs devoirs sont possibles en base; on synthétise une note de composition.
+      const devoir1 = devoirValues[0] ?? null
+      const devoir2 = devoirValues[1] ?? null
+
+      // Synthèse composition: moyenne des devoirs disponibles.
       const composition =
-        compositionValues.length > 0
-          ? roundToTwo(compositionValues.reduce((acc, value) => acc + value, 0) / compositionValues.length)
+        devoirValues.length > 0
+          ? roundToTwo(devoirValues.reduce((acc, value) => acc + value, 0) / devoirValues.length)
           : null
 
       let subjectAverage: number | null = null
@@ -531,9 +539,14 @@ function App() {
         subject: subject.name,
         coefficient: subject.coefficient,
         interroAverage,
+        devoir1,
+        devoir2,
         composition,
         subjectAverage,
         total,
+        sonne: '',
+        appreciation: subjectAverage === null ? '' : subjectAverage >= 14 ? 'Très bien' : subjectAverage >= 10 ? 'Assez bien' : 'Insuff.',
+        visa: '',
       }
     })
   }
@@ -574,6 +587,66 @@ function App() {
     )
     return rankRow?.rank_in_class ?? null
   }, [dashboardRanking, reportPeriod, reportStudent])
+  const reportClassStudents = useMemo(
+    () => (reportClass ? students.filter((item) => item.classId === reportClass.id) : []),
+    [reportClass, students],
+  )
+  const reportClassRows = useMemo(
+    () =>
+      reportClass
+        ? dashboardStudentAverages.filter(
+            (row) => row.class_id === reportClass.id && row.period === reportPeriod,
+          )
+        : [],
+    [dashboardStudentAverages, reportClass, reportPeriod],
+  )
+  const classAverageForPeriod = useMemo(() => {
+    if (!reportClass) return null
+    const row = dashboardClassAverages.find(
+      (item) => item.class_id === reportClass.id && item.period === reportPeriod,
+    )
+    return row?.class_average ?? null
+  }, [dashboardClassAverages, reportClass, reportPeriod])
+  const classBestAverage = useMemo(() => {
+    if (reportClassRows.length === 0) return null
+    return Math.max(...reportClassRows.map((row) => row.weighted_average))
+  }, [reportClassRows])
+  const classWeakAverage = useMemo(() => {
+    if (reportClassRows.length === 0) return null
+    return Math.min(...reportClassRows.map((row) => row.weighted_average))
+  }, [reportClassRows])
+  const classAboveAverageCount = useMemo(
+    () => reportClassRows.filter((row) => row.weighted_average >= 10).length,
+    [reportClassRows],
+  )
+  const reportAbsences = useMemo(
+    () =>
+      reportStudent
+        ? grades.filter(
+            (row) => row.studentId === reportStudent.id && row.period === reportPeriod && row.grade === null,
+          ).length
+        : 0,
+    [grades, reportPeriod, reportStudent],
+  )
+  const recapSem1 = useMemo(() => {
+    if (!reportStudent) return null
+    const row = dashboardStudentAverages.find((item) => item.student_id === reportStudent.id && item.period === 'S1')
+    return row?.weighted_average ?? null
+  }, [dashboardStudentAverages, reportStudent])
+  const recapSem2 = useMemo(() => {
+    if (!reportStudent) return null
+    const row = dashboardStudentAverages.find((item) => item.student_id === reportStudent.id && item.period === 'S2')
+    return row?.weighted_average ?? null
+  }, [dashboardStudentAverages, reportStudent])
+  const recapAnnuel = useMemo(() => {
+    if (!reportStudent) return null
+    const row = dashboardStudentAverages.find(
+      (item) => item.student_id === reportStudent.id && item.period === 'Annuel',
+    )
+    if (row) return row.weighted_average
+    if (recapSem1 !== null && recapSem2 !== null) return roundToTwo((recapSem1 + recapSem2) / 2)
+    return null
+  }, [dashboardStudentAverages, recapSem1, recapSem2, reportStudent])
 
   async function addClass(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1525,7 +1598,7 @@ function App() {
 
             {activeTab === 'reports' && (
               <div className="space-y-4">
-                <h2 className="text-xl font-semibold text-slate-900">Relevé semestriel</h2>
+                <h2 className="text-xl font-semibold text-slate-900">Bulletin officiel</h2>
                 <div className="grid gap-3 print:hidden md:grid-cols-4">
                   <select
                     className="rounded-lg border border-slate-300 px-3 py-2"
@@ -1572,94 +1645,176 @@ function App() {
                   </div>
                 </div>
 
-                <article className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200 bg-white p-6 shadow-md print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none">
-                  <header className="flex items-center justify-between border-b border-slate-200 pb-4">
-                    <div className="flex items-center gap-3">
-                      <span className="relative block h-10 w-14 overflow-hidden rounded-sm ring-1 ring-black/20">
+                <article className="mx-auto w-full max-w-[210mm] border border-gray-800 bg-white p-4 text-[11px] leading-tight text-gray-900 shadow-md [font-family:'Times_New_Roman',serif] print:min-h-[297mm] print:rounded-none print:border-gray-900 print:p-3 print:shadow-none">
+                  <header className="grid grid-cols-2 border border-gray-800">
+                    <div className="border-r border-gray-800 p-2">
+                      <p className="font-semibold uppercase">République du Bénin</p>
+                      <p className="uppercase">Ministère des Enseignements Secondaires</p>
+                      <p className="uppercase">{schoolName}</p>
+                      <p>Année scolaire : {schoolYear}</p>
+                    </div>
+                    <div className="p-2 text-right">
+                      <p className="text-[18px] font-bold uppercase">Bulletin de Notes</p>
+                      <p className="uppercase">{getPeriodLabel(reportPeriod)}</p>
+                    </div>
+                  </header>
+
+                  <section className="mt-1 grid grid-cols-12 border border-gray-800">
+                    <div className="col-span-5 border-r border-gray-800 p-2">
+                      <p className="mb-1 border-b border-gray-800 font-semibold uppercase">Identité de l'élève</p>
+                      <p>
+                        <span className="font-semibold">Nom & Prénoms :</span>{' '}
+                        {reportStudent ? `${reportStudent.firstName} ${reportStudent.lastName}` : 'N/A'}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Classe :</span>{' '}
+                        {reportClass ? `${reportClass.name} (${reportClass.level})` : 'N/A'}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Période :</span> {getPeriodLabel(reportPeriod)}
+                      </p>
+                    </div>
+                    <div className="col-span-2 flex items-center justify-center border-r border-gray-800 p-2">
+                      <span className="relative block h-16 w-20 overflow-hidden border border-gray-800">
                         <span className="absolute inset-y-0 left-0 w-2/5 bg-[#008751]" />
                         <span className="absolute inset-y-0 right-0 w-3/5">
                           <span className="block h-1/2 w-full bg-[#FCD116]" />
                           <span className="block h-1/2 w-full bg-[#E8112D]" />
                         </span>
                       </span>
-                      <div className="text-sm text-slate-700">
-                        <p className="font-semibold">République du Bénin</p>
-                        <p>CEG 5 DOGBO</p>
-                      </div>
                     </div>
-                    <div className="text-right">
-                      <h3 className="text-lg font-bold tracking-wide text-slate-900">RELEVÉ DE NOTES SEMESTRIEL</h3>
-                      <p className="text-sm text-slate-600">Année Scolaire {schoolYear}</p>
-                    </div>
-                  </header>
-
-                  <section className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm md:grid-cols-3">
-                    <div>
-                      <p className="text-slate-500">Élève</p>
-                      <p className="font-semibold text-slate-900">
-                        {reportStudent ? `${reportStudent.firstName} ${reportStudent.lastName}` : 'N/A'}
+                    <div className="col-span-5 p-2">
+                      <p className="mb-1 border-b border-gray-800 font-semibold uppercase">Situation de la classe</p>
+                      <p>
+                        <span className="font-semibold">Effectif :</span> {reportClassStudents.length}
                       </p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Classe</p>
-                      <p className="font-semibold text-slate-900">
-                        {reportClass ? `${reportClass.name} (${reportClass.level})` : 'N/A'}
+                      <p>
+                        <span className="font-semibold">Moyenne classe :</span>{' '}
+                        {classAverageForPeriod === null ? '-' : classAverageForPeriod.toFixed(2)}
                       </p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Période</p>
-                      <p className="font-semibold text-slate-900">{getPeriodLabel(reportPeriod)}</p>
+                      <p>
+                        <span className="font-semibold">Élèves ≥ 10 :</span> {classAboveAverageCount}
+                      </p>
                     </div>
                   </section>
 
-                  <section className="mt-4 grid gap-3 md:grid-cols-2">
-                    <div className="rounded-xl bg-indigo-600 px-4 py-3 text-white">
-                      <p className="text-xs uppercase tracking-wide text-indigo-100">Moyenne Semestrielle</p>
-                      <p className="mt-1 text-2xl font-bold">{reportAverage === null ? 'N/A' : `${reportAverage.toFixed(2)} / 20`}</p>
-                    </div>
-                    <div className="rounded-xl bg-emerald-600 px-4 py-3 text-white">
-                      <p className="text-xs uppercase tracking-wide text-emerald-100">Rang</p>
-                      <p className="mt-1 text-2xl font-bold">{reportRank ?? 'N/A'}</p>
-                    </div>
-                  </section>
-
-                  <section className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
-                    <table className="min-w-full divide-y divide-slate-200 text-sm">
-                      <thead className="bg-slate-100">
+                  <section className="mt-1 overflow-x-auto border border-gray-800">
+                    <table className="min-w-full border-collapse text-[10.5px]">
+                      <thead className="bg-gray-100">
                         <tr>
-                          <th className="px-3 py-2 text-left font-semibold text-slate-700">Matière</th>
-                          <th className="px-3 py-2 text-center font-semibold text-slate-700">Coef</th>
-                          <th className="px-3 py-2 text-center font-semibold text-slate-700">Moy. Interros</th>
-                          <th className="px-3 py-2 text-center font-semibold text-slate-700">Comp.</th>
-                          <th className="px-3 py-2 text-center font-semibold text-slate-700">Moy. Matière</th>
-                          <th className="px-3 py-2 text-center font-semibold text-slate-700">Total</th>
+                          <th className="border border-gray-800 px-1 py-1 text-left font-semibold">Matière</th>
+                          <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Moy Inter</th>
+                          <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Dév1</th>
+                          <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Dév2</th>
+                          <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Moi/20</th>
+                          <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Coef.</th>
+                          <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Moy. Coeff</th>
+                          <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Sonné</th>
+                          <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Appréc.</th>
+                          <th className="border border-gray-800 px-1 py-1 text-center font-semibold">Visa</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white">
-                        {reportLines.map((line) => (
-                          <tr key={line.subject}>
-                            <td className="px-3 py-2 text-slate-900">{line.subject}</td>
-                            <td className="px-3 py-2 text-center">{line.coefficient.toFixed(1)}</td>
-                            <td className="px-3 py-2 text-center">{line.interroAverage === null ? '-' : line.interroAverage.toFixed(2)}</td>
-                            <td className="px-3 py-2 text-center">{line.composition === null ? '-' : line.composition.toFixed(2)}</td>
-                            <td className="px-3 py-2 text-center">{line.subjectAverage === null ? '-' : line.subjectAverage.toFixed(2)}</td>
-                            <td className="px-3 py-2 text-center font-semibold">
+                      <tbody>
+                        {reportLines.map((line, index) => (
+                          <tr key={line.subject} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                            <td className="border border-gray-800 px-1 py-1">{line.subject}</td>
+                            <td className="border border-gray-800 px-1 py-1 text-center">
+                              {line.interroAverage === null ? '-' : line.interroAverage.toFixed(2)}
+                            </td>
+                            <td className="border border-gray-800 px-1 py-1 text-center">
+                              {line.devoir1 === null ? '-' : line.devoir1.toFixed(2)}
+                            </td>
+                            <td className="border border-gray-800 px-1 py-1 text-center">
+                              {line.devoir2 === null ? '-' : line.devoir2.toFixed(2)}
+                            </td>
+                            <td className="border border-gray-800 px-1 py-1 text-center">
+                              {line.subjectAverage === null ? '-' : line.subjectAverage.toFixed(2)}
+                            </td>
+                            <td className="border border-gray-800 px-1 py-1 text-center">{line.coefficient.toFixed(1)}</td>
+                            <td className="border border-gray-800 px-1 py-1 text-center">
                               {line.total === null ? '-' : line.total.toFixed(2)}
                             </td>
+                            <td className="border border-gray-800 px-1 py-1 text-center">{line.sonne}</td>
+                            <td className="border border-gray-800 px-1 py-1 text-center">{line.appreciation}</td>
+                            <td className="border border-gray-800 px-1 py-1 text-center">{line.visa}</td>
                           </tr>
                         ))}
+                        <tr className="bg-gray-100 font-semibold">
+                          <td className="border border-gray-800 px-1 py-1">TOTAL / MOYENNE</td>
+                          <td className="border border-gray-800 px-1 py-1" />
+                          <td className="border border-gray-800 px-1 py-1" />
+                          <td className="border border-gray-800 px-1 py-1" />
+                          <td className="border border-gray-800 px-1 py-1 text-center">
+                            {reportAverage === null ? '-' : reportAverage.toFixed(2)}
+                          </td>
+                          <td className="border border-gray-800 px-1 py-1 text-center">
+                            {reportLines.reduce((sum, line) => sum + line.coefficient, 0).toFixed(1)}
+                          </td>
+                          <td className="border border-gray-800 px-1 py-1 text-center">
+                            {reportLines.reduce((sum, line) => sum + (line.total ?? 0), 0).toFixed(2)}
+                          </td>
+                          <td className="border border-gray-800 px-1 py-1" />
+                          <td className="border border-gray-800 px-1 py-1" />
+                          <td className="border border-gray-800 px-1 py-1" />
+                        </tr>
                       </tbody>
                     </table>
                   </section>
 
-                  <footer className="mt-8 grid gap-4 text-sm text-slate-700 md:grid-cols-2">
-                    <div>
-                      <p className="font-medium text-slate-900">Nom et prénom du responsable</p>
-                      <p className="mt-2 border-b border-slate-300 pb-1">{reportSignerFullName || ' '}</p>
+                  <section className="mt-1 grid grid-cols-3 gap-1 text-[10px]">
+                    <div className="border border-gray-800 p-2">
+                      <p className="mb-1 border-b border-gray-800 font-semibold uppercase">Profil de la classe</p>
+                      <p>Moy. Classe : {classAverageForPeriod === null ? '-' : classAverageForPeriod.toFixed(2)}</p>
+                      <p>Meilleure : {classBestAverage === null ? '-' : classBestAverage.toFixed(2)}</p>
+                      <p>Plus faible : {classWeakAverage === null ? '-' : classWeakAverage.toFixed(2)}</p>
                     </div>
-                    <div>
-                      <p className="font-medium text-slate-900">Signature</p>
-                      <p className="mt-2 border-b border-slate-300 pb-1">&nbsp;</p>
+                    <div className="border border-gray-800 p-2">
+                      <p className="mb-1 border-b border-gray-800 font-semibold uppercase">Discipline</p>
+                      <p>Absences : {reportAbsences}</p>
+                      <p>Retards : 0</p>
+                    </div>
+                    <div className="border border-gray-800 p-2">
+                      <p className="mb-1 border-b border-gray-800 font-semibold uppercase">Résultats de l'élève</p>
+                      <p>Moyenne : {reportAverage === null ? '-' : `${reportAverage.toFixed(2)} / 20`}</p>
+                      <p>Rang : {reportRank ?? '-'}</p>
+                      <p>Appréciation générale : {reportAverage !== null && reportAverage >= 10 ? 'Admis' : 'À renforcer'}</p>
+                    </div>
+                  </section>
+
+                  <section className="mt-1 border border-gray-800 p-2 text-[10px]">
+                    <p className="mb-1 font-semibold uppercase">Décisions des conseils de classe et de discipline</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="inline-flex items-center gap-2"><input type="checkbox" readOnly /> Passage en classe supérieure</label>
+                      <label className="inline-flex items-center gap-2"><input type="checkbox" readOnly /> Redoublement</label>
+                      <label className="inline-flex items-center gap-2"><input type="checkbox" readOnly /> Exclusion temporaire</label>
+                      <label className="inline-flex items-center gap-2"><input type="checkbox" readOnly /> Avertissement conduite</label>
+                    </div>
+                  </section>
+
+                  <footer className="mt-1 grid grid-cols-2 gap-1 text-[10px]">
+                    <div className="border border-gray-800 p-2">
+                      <p className="mb-1 font-semibold uppercase">Récap des résultats</p>
+                      <table className="w-full border-collapse">
+                        <tbody>
+                          <tr>
+                            <td className="border border-gray-800 px-2 py-1">Moy. Sem1</td>
+                            <td className="border border-gray-800 px-2 py-1 text-right">{recapSem1 === null ? '-' : recapSem1.toFixed(2)}</td>
+                          </tr>
+                          <tr>
+                            <td className="border border-gray-800 px-2 py-1">Moy. Sem2</td>
+                            <td className="border border-gray-800 px-2 py-1 text-right">{recapSem2 === null ? '-' : recapSem2.toFixed(2)}</td>
+                          </tr>
+                          <tr>
+                            <td className="border border-gray-800 px-2 py-1">Moy. Annuelle</td>
+                            <td className="border border-gray-800 px-2 py-1 text-right">{recapAnnuel === null ? '-' : recapAnnuel.toFixed(2)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="border border-gray-800 p-2">
+                      <p className="mb-1 font-semibold uppercase">Visa du chef d'établissement</p>
+                      <p>Nom et prénom : {reportSignerFullName || '................................'}</p>
+                      <div className="mt-6 border-t border-gray-800 pt-6 text-right">Signature et cachet</div>
                     </div>
                   </footer>
                 </article>

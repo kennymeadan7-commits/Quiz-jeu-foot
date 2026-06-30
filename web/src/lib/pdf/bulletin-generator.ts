@@ -5,9 +5,14 @@ export type BulletinLine = {
   subject: string
   coefficient: number
   interroAverage: number | null
+  devoir1: number | null
+  devoir2: number | null
   composition: number | null
   subjectAverage: number | null
   total: number | null
+  sonne?: string
+  appreciation?: string
+  visa?: string
 }
 
 export type BulletinPayload = {
@@ -82,14 +87,18 @@ export function generateBulletinPdf(payload: BulletinPayload): void {
 
   autoTable(doc, {
     startY: 100,
-    head: [['Matiere', 'Coef', 'Moy. Interros', 'Comp.', 'Moy. Matiere', 'Total']],
+    head: [['Matiere', 'Moy Inter', 'Dev1', 'Dev2', 'Moi/20', 'Coef.', 'Moy. Coeff', 'Sonne', 'Apprec.', 'Visa']],
     body: payload.lines.map((line) => [
       line.subject,
-      line.coefficient.toString(),
       line.interroAverage === null ? '-' : line.interroAverage.toFixed(2),
-      line.composition === null ? '-' : line.composition.toFixed(2),
+      line.devoir1 === null ? '-' : line.devoir1.toFixed(2),
+      line.devoir2 === null ? '-' : line.devoir2.toFixed(2),
       line.subjectAverage === null ? '-' : line.subjectAverage.toFixed(2),
+      line.coefficient.toString(),
       line.total === null ? '-' : line.total.toFixed(2),
+      line.sonne ?? '',
+      line.appreciation ?? '',
+      line.visa ?? '',
     ]),
     styles: { fontSize: 9.5, cellPadding: 2.8, textColor: [15, 23, 42] },
     headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], halign: 'center' },
