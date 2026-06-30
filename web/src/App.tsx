@@ -77,6 +77,10 @@ const tabRoutes: Record<Tab, string> = {
 
 const schoolName = 'CEG 5 DOGBO'
 const schoolYear = '2025-2026'
+const formControlClass =
+  'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200'
+const primaryButtonClass =
+  'rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60'
 
 const classTemplates: ClassTemplate[] = [
   { value: '6e-a', name: '6e A', level: '6e' },
@@ -1084,29 +1088,33 @@ function App() {
 
         <div className="space-y-4">
           <section className="rounded-2xl bg-white/90 p-5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="text-sm font-medium text-slate-700">Semestre :</label>
-              <select
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={selectedPeriod}
-                onChange={(event) => setSelectedPeriod(event.target.value as Period)}
-              >
-                {periodOptions.map((period) => (
-                  <option key={period.value} value={period.value}>
-                    {period.label}
-                  </option>
-                ))}
-              </select>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="space-y-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Semestre</span>
+                <select
+                  className={formControlClass}
+                  value={selectedPeriod}
+                  onChange={(event) => setSelectedPeriod(event.target.value as Period)}
+                >
+                  {periodOptions.map((period) => (
+                    <option key={period.value} value={period.value}>
+                      {period.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-              <label className="ml-2 text-sm font-medium text-slate-700">Note manquante :</label>
-              <select
-                className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                value={missingPolicy}
-                onChange={(event) => void updateMissingPolicy(event.target.value as MissingGradePolicy)}
-              >
-                <option value="ignore">ignore</option>
-                <option value="zero">zero</option>
-              </select>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Note manquante</span>
+                <select
+                  className={formControlClass}
+                  value={missingPolicy}
+                  onChange={(event) => void updateMissingPolicy(event.target.value as MissingGradePolicy)}
+                >
+                  <option value="ignore">ignore</option>
+                  <option value="zero">zero</option>
+                </select>
+              </label>
             </div>
           </section>
 
@@ -1400,73 +1408,94 @@ function App() {
         {activeTab === 'grades' && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-slate-900">CRUD Notes</h2>
-            <form className="grid gap-3 md:grid-cols-7" onSubmit={(event) => void addGrade(event)}>
-              <select
-                className="rounded-lg border border-slate-300 px-3 py-2"
-                value={newGradeStudentId}
-                onChange={(event) => setNewGradeStudentId(event.target.value)}
-              >
-                {students.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.firstName} {item.lastName}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="rounded-lg border border-slate-300 px-3 py-2"
-                value={newGradeSubjectId}
-                onChange={(event) => setNewGradeSubjectId(event.target.value)}
-              >
-                {subjects.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="rounded-lg border border-slate-300 px-3 py-2"
-                value={newGradePeriod}
-                onChange={(event) => setNewGradePeriod(event.target.value as Period)}
-              >
-                {periodOptions.map((period) => (
-                  <option key={period.value} value={period.value}>
-                    {period.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="rounded-lg border border-slate-300 px-3 py-2"
-                value={newGradeAssessmentType}
-                onChange={(event) => setNewGradeAssessmentType(event.target.value as AssessmentType)}
-              >
-                {assessmentTypeOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="rounded-lg border border-slate-300 px-3 py-2"
-                type="number"
-                min="0"
-                max="20"
-                step="0.25"
-                placeholder="Note /20"
-                value={newGradeValue}
-                onChange={(event) => setNewGradeValue(event.target.value)}
-                disabled={newGradeMissing}
-              />
-              <label className="flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm">
+            <form
+              className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 md:grid-cols-2 xl:grid-cols-4"
+              onSubmit={(event) => void addGrade(event)}
+            >
+              <label className="space-y-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Élève</span>
+                <select
+                  className={formControlClass}
+                  value={newGradeStudentId}
+                  onChange={(event) => setNewGradeStudentId(event.target.value)}
+                >
+                  {students.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.firstName} {item.lastName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Matière</span>
+                <select
+                  className={formControlClass}
+                  value={newGradeSubjectId}
+                  onChange={(event) => setNewGradeSubjectId(event.target.value)}
+                >
+                  {subjects.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Semestre</span>
+                <select
+                  className={formControlClass}
+                  value={newGradePeriod}
+                  onChange={(event) => setNewGradePeriod(event.target.value as Period)}
+                >
+                  {periodOptions.map((period) => (
+                    <option key={period.value} value={period.value}>
+                      {period.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Type</span>
+                <select
+                  className={formControlClass}
+                  value={newGradeAssessmentType}
+                  onChange={(event) => setNewGradeAssessmentType(event.target.value as AssessmentType)}
+                >
+                  {assessmentTypeOptions.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Note /20</span>
                 <input
+                  className={formControlClass}
+                  type="number"
+                  min="0"
+                  max="20"
+                  step="0.25"
+                  placeholder="Ex: 14.5"
+                  value={newGradeValue}
+                  onChange={(event) => setNewGradeValue(event.target.value)}
+                  disabled={newGradeMissing}
+                />
+              </label>
+              <label className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm">
+                <input
+                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                   type="checkbox"
                   checked={newGradeMissing}
                   onChange={(event) => setNewGradeMissing(event.target.checked)}
                 />
                 Absente
               </label>
-              <button className="rounded-lg bg-slate-900 px-4 py-2 text-white" disabled={submitting}>
-                {submitting ? 'Traitement...' : 'Ajouter note'}
-              </button>
+              <div className="xl:col-span-2 xl:flex xl:items-end">
+                <button className={`${primaryButtonClass} w-full xl:w-auto`} disabled={submitting}>
+                  {submitting ? 'Traitement...' : 'Ajouter note'}
+                </button>
+              </div>
             </form>
 
             <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -1590,13 +1619,15 @@ function App() {
                             </label>
                           </div>
                         </td>
-                        <td className="px-3 py-2 space-x-2">
-                          <button type="button" className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-white hover:bg-emerald-500" onClick={() => void updateGrade(row.id)}>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+                            <button type="button" className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500" onClick={() => void updateGrade(row.id)}>
                             Enregistrer
-                          </button>
-                          <button type="button" className="rounded-md bg-rose-600 px-2.5 py-1.5 text-white hover:bg-rose-500" onClick={() => void deleteGrade(row.id)}>
+                            </button>
+                            <button type="button" className="rounded-md bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-500" onClick={() => void deleteGrade(row.id)}>
                             Supprimer
-                          </button>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
