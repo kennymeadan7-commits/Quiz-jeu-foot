@@ -39,16 +39,24 @@ cd web
 npm run build
 ```
 
-## Écrans déjà préparés
+## Fonctionnalités implémentées
 
-- Page d'accueil dashboard (prototype)
-- Cartes de métriques de classe
-- Sections/modules CRUD interactifs (Élèves, Classes, Matières, Notes) en mode local
-- Recalcul immédiat des moyennes de classe (T1)
+- CRUD complet (Create, Read, Update, Delete) :
+  - classes
+  - élèves
+  - matières
+  - notes
+- Dashboard enseignant/admin :
+  - moyennes de classe
+  - moyennes par élève
+  - classement des élèves
+- Règles métier :
+  - note sur 20
+  - gestion des notes manquantes via politique `ignore` / `zero`
+- Export bulletin PDF par élève et période
+- Fallback local si Supabase n'est pas configuré
 
-## Prochaine étape
-
-Brancher Supabase pour alimenter le dashboard avec les vues SQL :
+## Vues SQL utilisées
 
 - `v_student_averages`
 - `v_class_averages`
