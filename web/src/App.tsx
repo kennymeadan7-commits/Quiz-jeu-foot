@@ -66,6 +66,19 @@ const demoGrades: GradeItem[] = [
   { id: 'grd-4', studentId: 'std-2', subjectId: 'sub-2', period: 'T1', grade: 11 },
 ]
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim().length > 0) return message
+  }
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return 'Erreur inconnue'
+  }
+}
+
 function App() {
   const isRemoteMode = hasSupabaseConfig && Boolean(supabase)
   const [classAverages, setClassAverages] = useState<ClassAverageRow[]>([])
@@ -179,7 +192,7 @@ function App() {
       try {
         await loadRemoteData()
       } catch (error) {
-        const message = error instanceof Error ? error.message : 'Erreur inconnue'
+        const message = getErrorMessage(error)
         setErrorMessage(`Erreur Supabase: ${message}`)
         setLoading(false)
       }
@@ -297,7 +310,7 @@ function App() {
       setNewClassName('')
       setNewClassLevel('')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      const message = getErrorMessage(error)
       setActionMessage(`Erreur ajout classe: ${message}`)
     } finally {
       setSubmitting(false)
@@ -336,7 +349,7 @@ function App() {
       await loadRemoteData()
       setActionMessage('Classe supprimée en base.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      const message = getErrorMessage(error)
       setActionMessage(`Erreur suppression classe: ${message}`)
     } finally {
       setSubmitting(false)
@@ -376,7 +389,7 @@ function App() {
       setNewStudentFirstName('')
       setNewStudentLastName('')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      const message = getErrorMessage(error)
       setActionMessage(`Erreur ajout élève: ${message}`)
     } finally {
       setSubmitting(false)
@@ -401,7 +414,7 @@ function App() {
       await loadRemoteData()
       setActionMessage('Élève supprimé en base.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      const message = getErrorMessage(error)
       setActionMessage(`Erreur suppression élève: ${message}`)
     } finally {
       setSubmitting(false)
@@ -456,7 +469,7 @@ function App() {
       setNewSubjectName('')
       setNewSubjectCoefficient('1')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      const message = getErrorMessage(error)
       setActionMessage(`Erreur ajout matière: ${message}`)
     } finally {
       setSubmitting(false)
@@ -485,7 +498,7 @@ function App() {
       await loadRemoteData()
       setActionMessage('Matière supprimée en base.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      const message = getErrorMessage(error)
       setActionMessage(`Erreur suppression matière: ${message}`)
     } finally {
       setSubmitting(false)
@@ -531,7 +544,7 @@ function App() {
       setNewGradeValue('10')
       setNewGradeMissing(false)
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      const message = getErrorMessage(error)
       setActionMessage(`Erreur ajout note: ${message}`)
     } finally {
       setSubmitting(false)
@@ -555,7 +568,7 @@ function App() {
       await loadRemoteData()
       setActionMessage('Note supprimée en base.')
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      const message = getErrorMessage(error)
       setActionMessage(`Erreur suppression note: ${message}`)
     } finally {
       setSubmitting(false)
