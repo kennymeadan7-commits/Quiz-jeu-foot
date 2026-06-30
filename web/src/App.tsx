@@ -1756,15 +1756,11 @@ function App() {
                           <td className="border border-gray-800 px-1 py-1" />
                           <td className="border border-gray-800 px-1 py-1" />
                           <td className="border border-gray-800 px-1 py-1 text-center" />
-                          <td className="border border-gray-800 px-1 py-1 text-center">
-                            {reportLines.reduce((sum, line) => sum + line.coefficient, 0).toFixed(1)}
-                          </td>
+                          <td className="border border-gray-800 px-1 py-1 text-center" />
                           <td className="border border-gray-800 px-1 py-1 text-center">
                             {reportLines.reduce((sum, line) => sum + (line.total ?? 0), 0).toFixed(2)}
                           </td>
-                          <td className="border border-gray-800 px-1 py-1" />
-                          <td className="border border-gray-800 px-1 py-1" />
-                          <td className="border border-gray-800 px-1 py-1" />
+                          <td colSpan={3} className="px-0 py-0" />
                         </tr>
                         <tr className="bg-gray-100 font-semibold">
                           <td className="border border-gray-800 px-1 py-1">MOYENNE</td>
