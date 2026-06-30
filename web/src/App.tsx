@@ -36,6 +36,14 @@ type StudentRankingRow = {
   rank_in_class: number
 }
 type StudentSourceTable = 'eleves' | 'students'
+type SemesterReportLine = {
+  subject: string
+  coefficient: number
+  interroAverage: number | null
+  composition: number | null
+  subjectAverage: number | null
+  total: number | null
+}
 
 const periodOptions: Array<{ value: Period; label: string }> = [
   { value: 'S1', label: 'Semestre 1' },
@@ -63,6 +71,7 @@ const tabRoutes: Record<Tab, string> = {
 }
 
 const schoolName = 'CEG 5 DOGBO'
+const schoolYear = '2025-2026'
 
 const classTemplates: ClassTemplate[] = [
   { value: '6e-a', name: '6e A', level: '6e' },
@@ -109,6 +118,10 @@ function getTabFromPath(pathname: string): Tab {
   const normalizedPath = pathname.toLowerCase()
   const entry = Object.entries(tabRoutes).find(([, route]) => route === normalizedPath)
   return (entry?.[0] as Tab | undefined) ?? 'dashboard'
+}
+
+function roundToTwo(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100
 }
 
 function getErrorMessage(error: unknown): string {
@@ -469,6 +482,62 @@ function App() {
   const headlineAverage = dashboardClassAverages.length > 0 ? `${dashboardClassAverages[0].class_average.toFixed(2)} / 20` : '-- / 20'
   const missingNotesCount = grades.filter((grade) => grade.grade === null).length
 
+  function buildSemesterReportLines(studentId: string, period: Period): SemesterReportLine[] {
+    return subjects.map((subject) => {
+      const subjectGrades = grades.filter(
+        (row) => row.studentId === studentId && row.period === period && row.subjectId === subject.id,
+      )
+
+      const normalized = subjectGrades
+        .map((row) => {
+          if (row.grade === null) {
+            if (missingPolicy === 'zero') return { type: row.assessmentType, value: 0 }
+            return null
+          }
+          return { type: row.assessmentType, value: row.grade }
+        })
+        .filter((entry): entry is { type: AssessmentType; value: number } => entry !== null)
+
+      const interroValues = normalized
+        .filter((entry) => entry.type === 'Interrogation')
+        .map((entry) => entry.value)
+      const compositionValues = normalized
+        .filter((entry) => entry.type === 'Devoir')
+        .map((entry) => entry.value)
+
+      const interroAverage =
+        interroValues.length > 0
+          ? roundToTwo(interroValues.reduce((acc, value) => acc + value, 0) / interroValues.length)
+          : null
+
+      // Plusieurs devoirs sont possibles en base; on synthétise une note de composition.
+      const composition =
+        compositionValues.length > 0
+          ? roundToTwo(compositionValues.reduce((acc, value) => acc + value, 0) / compositionValues.length)
+          : null
+
+      let subjectAverage: number | null = null
+      if (interroAverage !== null && composition !== null) {
+        subjectAverage = roundToTwo((interroAverage + 2 * composition) / 3)
+      } else if (interroAverage !== null) {
+        subjectAverage = interroAverage
+      } else if (composition !== null) {
+        subjectAverage = composition
+      }
+
+      const total = subjectAverage === null ? null : roundToTwo(subjectAverage * subject.coefficient)
+
+      return {
+        subject: subject.name,
+        coefficient: subject.coefficient,
+        interroAverage,
+        composition,
+        subjectAverage,
+        total,
+      }
+    })
+  }
+
   function classLabel(classId: string): string {
     const c = classes.find((item) => item.id === classId)
     return c ? `${c.name} (${c.level})` : classId
@@ -478,6 +547,33 @@ function App() {
     const s = students.find((item) => item.id === studentId)
     return s ? `${s.firstName} ${s.lastName}` : studentId
   }
+
+  const reportStudent = useMemo(
+    () => students.find((item) => item.id === reportStudentId) ?? null,
+    [students, reportStudentId],
+  )
+  const reportClass = useMemo(
+    () => classes.find((item) => item.id === reportStudent?.classId) ?? null,
+    [classes, reportStudent],
+  )
+  const reportLines = useMemo(
+    () => (reportStudent ? buildSemesterReportLines(reportStudent.id, reportPeriod) : []),
+    [reportStudent, reportPeriod, subjects, grades, missingPolicy],
+  )
+  const reportAverage = useMemo(() => {
+    const valid = reportLines.filter((line) => line.subjectAverage !== null)
+    const coefSum = valid.reduce((sum, line) => sum + line.coefficient, 0)
+    if (coefSum === 0) return null
+    const total = valid.reduce((sum, line) => sum + (line.total ?? 0), 0)
+    return roundToTwo(total / coefSum)
+  }, [reportLines])
+  const reportRank = useMemo(() => {
+    if (!reportStudent) return null
+    const rankRow = dashboardRanking.find(
+      (row) => row.student_id === reportStudent.id && row.period === reportPeriod,
+    )
+    return rankRow?.rank_in_class ?? null
+  }, [dashboardRanking, reportPeriod, reportStudent])
 
   async function addClass(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -840,39 +936,19 @@ function App() {
       return
     }
     const studentClass = classes.find((item) => item.id === student.classId)
-    const studentPeriodGrades = grades.filter(
-      (row) => row.studentId === student.id && row.period === reportPeriod,
-    )
-    const lines =
-      studentPeriodGrades.length > 0
-        ? studentPeriodGrades.map((grade) => {
-            const subject = subjects.find((item) => item.id === grade.subjectId)
-            return {
-              subject: subject?.name ?? grade.subjectId,
-              assessmentType: grade.assessmentType,
-              coefficient: subject?.coefficient ?? 1,
-              grade: grade.grade,
-            }
-          })
-        : subjects.map((subject) => ({
-            subject: subject.name,
-            assessmentType: 'Interrogation' as AssessmentType,
-            coefficient: subject.coefficient,
-            grade: null,
-          }))
-
-    const avgRow = dashboardStudentAverages.find(
-      (row) => row.student_id === student.id && row.period === reportPeriod,
-    )
-    const rankRow = dashboardRanking.find(
-      (row) => row.student_id === student.id && row.period === reportPeriod,
-    )
+    const lines = buildSemesterReportLines(student.id, reportPeriod)
+    const validLines = lines.filter((line) => line.subjectAverage !== null)
+    const coefSum = validLines.reduce((sum, line) => sum + line.coefficient, 0)
+    const calculatedAverage =
+      coefSum === 0 ? null : roundToTwo(validLines.reduce((sum, line) => sum + (line.total ?? 0), 0) / coefSum)
+    const rankRow = dashboardRanking.find((row) => row.student_id === student.id && row.period === reportPeriod)
 
     generateBulletinPdf({
       studentFullName: `${student.firstName} ${student.lastName}`,
       className: studentClass ? `${studentClass.name} (${studentClass.level})` : 'N/A',
       period: getPeriodLabel(reportPeriod),
-      average: avgRow?.weighted_average ?? null,
+      schoolYear,
+      average: calculatedAverage,
       rank: rankRow?.rank_in_class ?? null,
       missingPolicy,
       signerFullName: reportSignerFullName.trim(),
@@ -1448,43 +1524,146 @@ function App() {
         )}
 
             {activeTab === 'reports' && (
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-slate-900">Export Bulletin PDF</h2>
-            <div className="grid gap-3 md:grid-cols-4">
-              <select
-                className="rounded-lg border border-slate-300 px-3 py-2"
-                value={reportStudentId}
-                onChange={(event) => setReportStudentId(event.target.value)}
-              >
-                {students.map((student) => (
-                  <option key={student.id} value={student.id}>
-                    {student.firstName} {student.lastName}
-                  </option>
-                ))}
-              </select>
-              <select
-                className="rounded-lg border border-slate-300 px-3 py-2"
-                value={reportPeriod}
-                onChange={(event) => setReportPeriod(event.target.value as Period)}
-              >
-                {periodOptions.map((period) => (
-                  <option key={period.value} value={period.value}>
-                    {period.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="rounded-lg border border-slate-300 px-3 py-2"
-                placeholder="Nom et prénom du signataire"
-                value={reportSignerFullName}
-                onChange={(event) => setReportSignerFullName(event.target.value)}
-              />
-              <button className="rounded-lg bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-500" onClick={exportBulletin}>
-                Exporter PDF
-              </button>
-            </div>
+              <div className="space-y-4">
+                <h2 className="text-xl font-semibold text-slate-900">Relevé semestriel</h2>
+                <div className="grid gap-3 print:hidden md:grid-cols-4">
+                  <select
+                    className="rounded-lg border border-slate-300 px-3 py-2"
+                    value={reportStudentId}
+                    onChange={(event) => setReportStudentId(event.target.value)}
+                  >
+                    {students.map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.firstName} {student.lastName}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="rounded-lg border border-slate-300 px-3 py-2"
+                    value={reportPeriod}
+                    onChange={(event) => setReportPeriod(event.target.value as Period)}
+                  >
+                    {periodOptions.map((period) => (
+                      <option key={period.value} value={period.value}>
+                        {period.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className="rounded-lg border border-slate-300 px-3 py-2"
+                    placeholder="Nom et prénom du signataire"
+                    value={reportSignerFullName}
+                    onChange={(event) => setReportSignerFullName(event.target.value)}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      className="rounded-lg bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-500"
+                      onClick={exportBulletin}
+                    >
+                      Export PDF
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-lg bg-slate-900 px-4 py-2 text-white hover:bg-slate-700"
+                      onClick={() => window.print()}
+                    >
+                      Imprimer
+                    </button>
+                  </div>
+                </div>
 
-          </div>
+                <article className="mx-auto w-full max-w-5xl rounded-2xl border border-slate-200 bg-white p-6 shadow-md print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none">
+                  <header className="flex items-center justify-between border-b border-slate-200 pb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="relative block h-10 w-14 overflow-hidden rounded-sm ring-1 ring-black/20">
+                        <span className="absolute inset-y-0 left-0 w-2/5 bg-[#008751]" />
+                        <span className="absolute inset-y-0 right-0 w-3/5">
+                          <span className="block h-1/2 w-full bg-[#FCD116]" />
+                          <span className="block h-1/2 w-full bg-[#E8112D]" />
+                        </span>
+                      </span>
+                      <div className="text-sm text-slate-700">
+                        <p className="font-semibold">République du Bénin</p>
+                        <p>CEG 5 DOGBO</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <h3 className="text-lg font-bold tracking-wide text-slate-900">RELEVÉ DE NOTES SEMESTRIEL</h3>
+                      <p className="text-sm text-slate-600">Année Scolaire {schoolYear}</p>
+                    </div>
+                  </header>
+
+                  <section className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm md:grid-cols-3">
+                    <div>
+                      <p className="text-slate-500">Élève</p>
+                      <p className="font-semibold text-slate-900">
+                        {reportStudent ? `${reportStudent.firstName} ${reportStudent.lastName}` : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Classe</p>
+                      <p className="font-semibold text-slate-900">
+                        {reportClass ? `${reportClass.name} (${reportClass.level})` : 'N/A'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-slate-500">Période</p>
+                      <p className="font-semibold text-slate-900">{getPeriodLabel(reportPeriod)}</p>
+                    </div>
+                  </section>
+
+                  <section className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl bg-indigo-600 px-4 py-3 text-white">
+                      <p className="text-xs uppercase tracking-wide text-indigo-100">Moyenne Semestrielle</p>
+                      <p className="mt-1 text-2xl font-bold">{reportAverage === null ? 'N/A' : `${reportAverage.toFixed(2)} / 20`}</p>
+                    </div>
+                    <div className="rounded-xl bg-emerald-600 px-4 py-3 text-white">
+                      <p className="text-xs uppercase tracking-wide text-emerald-100">Rang</p>
+                      <p className="mt-1 text-2xl font-bold">{reportRank ?? 'N/A'}</p>
+                    </div>
+                  </section>
+
+                  <section className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
+                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <thead className="bg-slate-100">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-semibold text-slate-700">Matière</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700">Coef</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700">Moy. Interros</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700">Comp.</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700">Moy. Matière</th>
+                          <th className="px-3 py-2 text-center font-semibold text-slate-700">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {reportLines.map((line) => (
+                          <tr key={line.subject}>
+                            <td className="px-3 py-2 text-slate-900">{line.subject}</td>
+                            <td className="px-3 py-2 text-center">{line.coefficient.toFixed(1)}</td>
+                            <td className="px-3 py-2 text-center">{line.interroAverage === null ? '-' : line.interroAverage.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-center">{line.composition === null ? '-' : line.composition.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-center">{line.subjectAverage === null ? '-' : line.subjectAverage.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-center font-semibold">
+                              {line.total === null ? '-' : line.total.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </section>
+
+                  <footer className="mt-8 grid gap-4 text-sm text-slate-700 md:grid-cols-2">
+                    <div>
+                      <p className="font-medium text-slate-900">Nom et prénom du responsable</p>
+                      <p className="mt-2 border-b border-slate-300 pb-1">{reportSignerFullName || ' '}</p>
+                    </div>
+                    <div>
+                      <p className="font-medium text-slate-900">Signature</p>
+                      <p className="mt-2 border-b border-slate-300 pb-1">&nbsp;</p>
+                    </div>
+                  </footer>
+                </article>
+              </div>
             )}
           </section>
         </div>
