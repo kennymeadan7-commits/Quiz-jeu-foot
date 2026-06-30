@@ -32,7 +32,7 @@ const modules: { key: Tab; name: string; description: string }[] = [
   { key: 'reports', name: 'Bulletins PDF', description: 'Export PDF par élève et période.' },
 ]
 
-const schoolName = 'CEG 5'
+const schoolName = 'CEG 5 DOGBO'
 
 const classTemplates: ClassTemplate[] = [
   { value: '6e-a', name: '6e A', level: '6e' },

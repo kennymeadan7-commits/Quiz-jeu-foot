@@ -3,7 +3,7 @@
 Ce dossier contient le frontend React (Vite + TypeScript + Tailwind CSS)
 pour l'application de gestion des moyennes du secondaire.
 
-Version actuelle adaptée pour l'établissement **CEG 5**.
+Version actuelle adaptée pour l'établissement **CEG 5 DOGBO**.
 
 ## Lancer l'application en local
 
