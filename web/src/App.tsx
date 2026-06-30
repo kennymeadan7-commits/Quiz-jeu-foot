@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { hasSupabaseConfig, supabase } from './lib/supabase/client'
 import { calculateWeightedAverage } from './domain/services/average-calculator'
 
-const modules = [
+const modules: { key: Tab; name: string; description: string }[] = [
   { key: 'students', name: 'Élèves', description: 'Créer, modifier et suivre les profils élèves.' },
   { key: 'classes', name: 'Classes', description: 'Gérer les classes, niveaux et année scolaire.' },
   { key: 'subjects', name: 'Matières', description: 'Configurer les matières et leurs coefficients.' },
@@ -67,9 +67,12 @@ const demoGrades: GradeItem[] = [
 ]
 
 function App() {
+  const isRemoteMode = hasSupabaseConfig && Boolean(supabase)
   const [classAverages, setClassAverages] = useState<ClassAverageRow[]>([])
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('classes')
 
   const [classes, setClasses] = useState<ClassItem[]>(demoClasses)
@@ -92,9 +95,80 @@ function App() {
   const [newGradeValue, setNewGradeValue] = useState('10')
   const [newGradeMissing, setNewGradeMissing] = useState(false)
 
+  async function loadRemoteData() {
+    if (!supabase) return
+
+    setLoading(true)
+    setErrorMessage(null)
+    const currentYear = new Date().getFullYear()
+
+    const [classesRes, studentsRes, subjectsRes, classSubjectsRes, gradesRes, averagesRes] =
+      await Promise.all([
+        supabase.from('classes').select('id, name, level').order('name'),
+        supabase.from('students').select('id, first_name, last_name, class_id').order('last_name'),
+        supabase.from('subjects').select('id, name').order('name'),
+        supabase.from('class_subjects').select('subject_id, class_id, coefficient'),
+        supabase.from('grades').select('id, student_id, subject_id, period, grade').order('created_at'),
+        supabase
+          .from('v_class_averages')
+          .select('class_id, period, class_average')
+          .eq('period', 'T1')
+          .order('class_average', { ascending: false })
+          .limit(5),
+      ])
+
+    if (classesRes.error) throw classesRes.error
+    if (studentsRes.error) throw studentsRes.error
+    if (subjectsRes.error) throw subjectsRes.error
+    if (classSubjectsRes.error) throw classSubjectsRes.error
+    if (gradesRes.error) throw gradesRes.error
+    if (averagesRes.error) throw averagesRes.error
+
+    const coefficientBySubject = new Map<string, number>()
+    for (const row of classSubjectsRes.data ?? []) {
+      if (!coefficientBySubject.has(row.subject_id)) {
+        coefficientBySubject.set(row.subject_id, Number(row.coefficient))
+      }
+    }
+
+    setClasses(
+      (classesRes.data ?? []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        level: row.level || `${currentYear}`,
+      })),
+    )
+    setStudents(
+      (studentsRes.data ?? []).map((row) => ({
+        id: row.id,
+        firstName: row.first_name,
+        lastName: row.last_name,
+        classId: row.class_id,
+      })),
+    )
+    setSubjects(
+      (subjectsRes.data ?? []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        coefficient: coefficientBySubject.get(row.id) ?? 1,
+      })),
+    )
+    setGrades(
+      (gradesRes.data ?? []).map((row) => ({
+        id: row.id,
+        studentId: row.student_id,
+        subjectId: row.subject_id,
+        period: row.period,
+        grade: row.grade === null ? null : Number(row.grade),
+      })),
+    )
+    setClassAverages((averagesRes.data ?? []) as ClassAverageRow[])
+    setLoading(false)
+  }
+
   useEffect(() => {
-    async function loadClassAverages() {
-      if (!hasSupabaseConfig || !supabase) {
+    async function initialize() {
+      if (!isRemoteMode) {
         setLoading(false)
         setErrorMessage(
           'Supabase non configuré. Ajoute VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY dans web/.env.local.',
@@ -102,25 +176,17 @@ function App() {
         return
       }
 
-      const { data, error } = await supabase
-        .from('v_class_averages')
-        .select('class_id, period, class_average')
-        .eq('period', 'T1')
-        .order('class_average', { ascending: false })
-        .limit(5)
-
-      if (error) {
-        setErrorMessage(`Erreur Supabase: ${error.message}`)
+      try {
+        await loadRemoteData()
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Erreur inconnue'
+        setErrorMessage(`Erreur Supabase: ${message}`)
         setLoading(false)
-        return
       }
-
-      setClassAverages((data ?? []) as ClassAverageRow[])
-      setLoading(false)
     }
 
-    loadClassAverages()
-  }, [])
+    void initialize()
+  }, [isRemoteMode])
 
   useEffect(() => {
     if (classes.length > 0 && !classes.some((item) => item.id === newStudentClassId)) {
@@ -179,60 +245,254 @@ function App() {
     return `${displayedClassAverages[0].class_average.toFixed(2)} / 20`
   }, [displayedClassAverages])
 
-  function addClass(event: React.FormEvent<HTMLFormElement>) {
+  async function addClass(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!newClassName.trim() || !newClassLevel.trim()) return
 
-    setClasses((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        name: newClassName.trim(),
-        level: newClassLevel.trim(),
-      },
-    ])
+    if (!isRemoteMode || !supabase) {
+      setClasses((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          name: newClassName.trim(),
+          level: newClassLevel.trim(),
+        },
+      ])
+      setNewClassName('')
+      setNewClassLevel('')
+      return
+    }
 
-    setNewClassName('')
-    setNewClassLevel('')
+    setSubmitting(true)
+    setActionMessage(null)
+    try {
+      const year = new Date().getFullYear()
+      const academicYear = `${year}-${year + 1}`
+      const code = `CLS-${newClassName.trim().toUpperCase().replaceAll(' ', '-')}-${Date.now().toString().slice(-4)}`
+      const { data, error } = await supabase
+        .from('classes')
+        .insert({
+          code,
+          name: newClassName.trim(),
+          level: newClassLevel.trim(),
+          academic_year: academicYear,
+        })
+        .select('id')
+        .single()
+
+      if (error) throw error
+
+      if (data && subjects.length > 0) {
+        const relationPayload = subjects.map((subject) => ({
+          class_id: data.id,
+          subject_id: subject.id,
+          coefficient: subject.coefficient,
+        }))
+        const { error: relationError } = await supabase.from('class_subjects').insert(relationPayload)
+        if (relationError) throw relationError
+      }
+
+      await loadRemoteData()
+      setActionMessage('Classe ajoutée en base avec succès.')
+      setNewClassName('')
+      setNewClassLevel('')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      setActionMessage(`Erreur ajout classe: ${message}`)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  function addStudent(event: React.FormEvent<HTMLFormElement>) {
+  async function deleteClass(index: number) {
+    const removed = classes[index]
+    if (!removed) return
+
+    if (!isRemoteMode || !supabase) {
+      setClasses((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
+      setStudents((prev) => prev.filter((student) => student.classId !== removed.id))
+      setGrades((prev) => prev.filter((grade) => {
+        const student = students.find((s) => s.id === grade.studentId)
+        return student?.classId !== removed.id
+      }))
+      return
+    }
+
+    setSubmitting(true)
+    setActionMessage(null)
+    try {
+      const studentIds = students.filter((student) => student.classId === removed.id).map((student) => student.id)
+      if (studentIds.length > 0) {
+        const { error: gradesError } = await supabase.from('grades').delete().in('student_id', studentIds)
+        if (gradesError) throw gradesError
+      }
+      const { error: studentsError } = await supabase.from('students').delete().eq('class_id', removed.id)
+      if (studentsError) throw studentsError
+      const { error: relationError } = await supabase.from('class_subjects').delete().eq('class_id', removed.id)
+      if (relationError) throw relationError
+      const { error: classError } = await supabase.from('classes').delete().eq('id', removed.id)
+      if (classError) throw classError
+
+      await loadRemoteData()
+      setActionMessage('Classe supprimée en base.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      setActionMessage(`Erreur suppression classe: ${message}`)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function addStudent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!newStudentFirstName.trim() || !newStudentLastName.trim() || !newStudentClassId) return
 
-    setStudents((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        firstName: newStudentFirstName.trim(),
-        lastName: newStudentLastName.trim(),
-        classId: newStudentClassId,
-      },
-    ])
+    if (!isRemoteMode || !supabase) {
+      setStudents((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          firstName: newStudentFirstName.trim(),
+          lastName: newStudentLastName.trim(),
+          classId: newStudentClassId,
+        },
+      ])
+      setNewStudentFirstName('')
+      setNewStudentLastName('')
+      return
+    }
 
-    setNewStudentFirstName('')
-    setNewStudentLastName('')
+    setSubmitting(true)
+    setActionMessage(null)
+    try {
+      const { error } = await supabase.from('students').insert({
+        first_name: newStudentFirstName.trim(),
+        last_name: newStudentLastName.trim(),
+        class_id: newStudentClassId,
+      })
+      if (error) throw error
+      await loadRemoteData()
+      setActionMessage('Élève ajouté en base.')
+      setNewStudentFirstName('')
+      setNewStudentLastName('')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      setActionMessage(`Erreur ajout élève: ${message}`)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  function addSubject(event: React.FormEvent<HTMLFormElement>) {
+  async function deleteStudent(index: number) {
+    const removed = students[index]
+    if (!removed) return
+
+    if (!isRemoteMode || !supabase) {
+      setStudents((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
+      setGrades((prev) => prev.filter((grade) => grade.studentId !== removed.id))
+      return
+    }
+
+    setSubmitting(true)
+    setActionMessage(null)
+    try {
+      const { error } = await supabase.from('students').delete().eq('id', removed.id)
+      if (error) throw error
+      await loadRemoteData()
+      setActionMessage('Élève supprimé en base.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      setActionMessage(`Erreur suppression élève: ${message}`)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function addSubject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const coefficient = Number(newSubjectCoefficient)
     if (!newSubjectName.trim() || Number.isNaN(coefficient) || coefficient <= 0) return
 
-    setSubjects((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        name: newSubjectName.trim(),
-        coefficient,
-      },
-    ])
+    if (!isRemoteMode || !supabase) {
+      setSubjects((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          name: newSubjectName.trim(),
+          coefficient,
+        },
+      ])
+      setNewSubjectName('')
+      setNewSubjectCoefficient('1')
+      return
+    }
 
-    setNewSubjectName('')
-    setNewSubjectCoefficient('1')
+    setSubmitting(true)
+    setActionMessage(null)
+    try {
+      const code = `SUB-${newSubjectName.trim().toUpperCase().replaceAll(' ', '-')}-${Date.now().toString().slice(-4)}`
+      const { data, error } = await supabase
+        .from('subjects')
+        .insert({
+          code,
+          name: newSubjectName.trim(),
+        })
+        .select('id')
+        .single()
+      if (error) throw error
+
+      if (data && classes.length > 0) {
+        const relationPayload = classes.map((classItem) => ({
+          class_id: classItem.id,
+          subject_id: data.id,
+          coefficient,
+        }))
+        const { error: relationError } = await supabase.from('class_subjects').insert(relationPayload)
+        if (relationError) throw relationError
+      }
+
+      await loadRemoteData()
+      setActionMessage('Matière ajoutée en base.')
+      setNewSubjectName('')
+      setNewSubjectCoefficient('1')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      setActionMessage(`Erreur ajout matière: ${message}`)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
-  function addGrade(event: React.FormEvent<HTMLFormElement>) {
+  async function deleteSubject(index: number) {
+    const removed = subjects[index]
+    if (!removed) return
+
+    if (!isRemoteMode || !supabase) {
+      setSubjects((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
+      setGrades((prev) => prev.filter((grade) => grade.subjectId !== removed.id))
+      return
+    }
+
+    setSubmitting(true)
+    setActionMessage(null)
+    try {
+      const { error: gradesError } = await supabase.from('grades').delete().eq('subject_id', removed.id)
+      if (gradesError) throw gradesError
+      const { error: relError } = await supabase.from('class_subjects').delete().eq('subject_id', removed.id)
+      if (relError) throw relError
+      const { error: subjectError } = await supabase.from('subjects').delete().eq('id', removed.id)
+      if (subjectError) throw subjectError
+      await loadRemoteData()
+      setActionMessage('Matière supprimée en base.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      setActionMessage(`Erreur suppression matière: ${message}`)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function addGrade(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!newGradeStudentId || !newGradeSubjectId) return
 
@@ -240,19 +500,66 @@ function App() {
     const isValidGrade = newGradeMissing || (!Number.isNaN(numericValue) && numericValue >= 0 && numericValue <= 20)
     if (!isValidGrade) return
 
-    setGrades((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        studentId: newGradeStudentId,
-        subjectId: newGradeSubjectId,
+    if (!isRemoteMode || !supabase) {
+      setGrades((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          studentId: newGradeStudentId,
+          subjectId: newGradeSubjectId,
+          period: 'T1',
+          grade: newGradeMissing ? null : numericValue,
+        },
+      ])
+      setNewGradeValue('10')
+      setNewGradeMissing(false)
+      return
+    }
+
+    setSubmitting(true)
+    setActionMessage(null)
+    try {
+      const { error } = await supabase.from('grades').insert({
+        student_id: newGradeStudentId,
+        subject_id: newGradeSubjectId,
         period: 'T1',
         grade: newGradeMissing ? null : numericValue,
-      },
-    ])
+      })
+      if (error) throw error
+      await loadRemoteData()
+      setActionMessage('Note ajoutée en base.')
+      setNewGradeValue('10')
+      setNewGradeMissing(false)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      setActionMessage(`Erreur ajout note: ${message}`)
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
-    setNewGradeValue('10')
-    setNewGradeMissing(false)
+  async function deleteGrade(index: number) {
+    const removed = grades[index]
+    if (!removed) return
+
+    if (!isRemoteMode || !supabase) {
+      setGrades((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
+      return
+    }
+
+    setSubmitting(true)
+    setActionMessage(null)
+    try {
+      const { error } = await supabase.from('grades').delete().eq('id', removed.id)
+      if (error) throw error
+      await loadRemoteData()
+      setActionMessage('Note supprimée en base.')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Erreur inconnue'
+      setActionMessage(`Erreur suppression note: ${message}`)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const totalMissingGrades = grades.filter((item) => item.grade === null).length
@@ -281,7 +588,7 @@ function App() {
         />
         <StatCard
           label="Source"
-          value={classAverages.length > 0 ? 'Supabase' : hasSupabaseConfig ? 'Fallback local' : 'Mode local'}
+          value={isRemoteMode ? 'Supabase' : 'Mode local'}
         />
         <StatCard
           label="Notes manquantes"
@@ -310,6 +617,9 @@ function App() {
 
       <section className="mb-8 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 className="text-xl font-semibold text-slate-900">Espace de saisie interactif</h2>
+        {actionMessage ? (
+          <p className="mt-2 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{actionMessage}</p>
+        ) : null}
         <div className="mt-4 flex flex-wrap gap-2">
           <TabButton label="Classes" isActive={activeTab === 'classes'} onClick={() => setActiveTab('classes')} />
           <TabButton label="Élèves" isActive={activeTab === 'students'} onClick={() => setActiveTab('students')} />
@@ -332,15 +642,13 @@ function App() {
                 value={newClassLevel}
                 onChange={(event) => setNewClassLevel(event.target.value)}
               />
-              <button className="rounded-lg bg-slate-900 px-4 py-2 text-white">Ajouter classe</button>
+              <button className="rounded-lg bg-slate-900 px-4 py-2 text-white" disabled={submitting}>
+                {submitting ? 'Traitement...' : 'Ajouter classe'}
+              </button>
             </form>
             <EntityList
               items={classes.map((item) => `${item.name} (${item.level})`)}
-              onDelete={(index) => {
-                const removed = classes[index]
-                setClasses((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
-                setStudents((prev) => prev.filter((student) => student.classId !== removed.id))
-              }}
+              onDelete={deleteClass}
             />
           </div>
         )}
@@ -371,18 +679,16 @@ function App() {
                   </option>
                 ))}
               </select>
-              <button className="rounded-lg bg-slate-900 px-4 py-2 text-white">Ajouter élève</button>
+              <button className="rounded-lg bg-slate-900 px-4 py-2 text-white" disabled={submitting}>
+                {submitting ? 'Traitement...' : 'Ajouter élève'}
+              </button>
             </form>
             <EntityList
               items={students.map((item) => {
                 const classLabel = classes.find((classItem) => classItem.id === item.classId)?.name ?? 'Sans classe'
                 return `${item.firstName} ${item.lastName} - ${classLabel}`
               })}
-              onDelete={(index) => {
-                const removed = students[index]
-                setStudents((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
-                setGrades((prev) => prev.filter((grade) => grade.studentId !== removed.id))
-              }}
+              onDelete={deleteStudent}
             />
           </div>
         )}
@@ -405,15 +711,13 @@ function App() {
                 value={newSubjectCoefficient}
                 onChange={(event) => setNewSubjectCoefficient(event.target.value)}
               />
-              <button className="rounded-lg bg-slate-900 px-4 py-2 text-white">Ajouter matière</button>
+              <button className="rounded-lg bg-slate-900 px-4 py-2 text-white" disabled={submitting}>
+                {submitting ? 'Traitement...' : 'Ajouter matière'}
+              </button>
             </form>
             <EntityList
               items={subjects.map((item) => `${item.name} (coef ${item.coefficient})`)}
-              onDelete={(index) => {
-                const removed = subjects[index]
-                setSubjects((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
-                setGrades((prev) => prev.filter((grade) => grade.subjectId !== removed.id))
-              }}
+              onDelete={deleteSubject}
             />
           </div>
         )}
@@ -462,7 +766,9 @@ function App() {
                 />
                 Note manquante
               </label>
-              <button className="rounded-lg bg-slate-900 px-4 py-2 text-white">Ajouter note</button>
+              <button className="rounded-lg bg-slate-900 px-4 py-2 text-white" disabled={submitting}>
+                {submitting ? 'Traitement...' : 'Ajouter note'}
+              </button>
             </form>
             <EntityList
               items={grades.map((item) => {
@@ -473,9 +779,7 @@ function App() {
                 const value = item.grade === null ? 'Absente' : `${item.grade}/20`
                 return `${studentName} - ${subjectName} - ${value}`
               })}
-              onDelete={(index) => {
-                setGrades((prev) => prev.filter((_, currentIndex) => currentIndex !== index))
-              }}
+              onDelete={deleteGrade}
             />
           </div>
         )}
@@ -524,7 +828,7 @@ function App() {
       <section className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
         <h2 className="text-xl font-semibold text-slate-900">Prochaine étape</h2>
         <p className="mt-2 text-slate-600">
-          Compléter le CRUD persistant Supabase (insert/update/delete) puis afficher les résultats des vues :
+          Étendre le dashboard avec la vue de classement et la moyenne par élève :
           <code className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-sm">v_student_averages</code>,
           <code className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-sm">v_class_averages</code> et
           <code className="ml-1 rounded bg-slate-100 px-1.5 py-0.5 text-sm">v_student_ranking</code>.

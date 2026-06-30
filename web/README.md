@@ -26,6 +26,9 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 Sans ces variables, l'application démarre quand même mais en mode local sans données distantes.
 
+Avec ces variables, les formulaires CRUD (classes, élèves, matières, notes)
+écrivent et suppriment réellement les données dans Supabase.
+
 ## Vérifier que le projet compile
 
 ```bash
