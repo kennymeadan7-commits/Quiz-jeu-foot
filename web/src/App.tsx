@@ -44,6 +44,12 @@ type GradeItem = {
   grade: number | null
 }
 
+type ClassTemplate = {
+  value: string
+  name: string
+  level: string
+}
+
 const demoClasses: ClassItem[] = [
   { id: 'cls-1', name: '2nde A', level: '2nde' },
   { id: 'cls-2', name: '2nde B', level: '2nde' },
@@ -64,6 +70,23 @@ const demoGrades: GradeItem[] = [
   { id: 'grd-2', studentId: 'std-1', subjectId: 'sub-2', period: 'T1', grade: 12 },
   { id: 'grd-3', studentId: 'std-2', subjectId: 'sub-1', period: 'T1', grade: 10 },
   { id: 'grd-4', studentId: 'std-2', subjectId: 'sub-2', period: 'T1', grade: 11 },
+]
+
+const classTemplates: ClassTemplate[] = [
+  { value: '6e-a', name: '6e A', level: '6e' },
+  { value: '6e-b', name: '6e B', level: '6e' },
+  { value: '5e-a', name: '5e A', level: '5e' },
+  { value: '5e-b', name: '5e B', level: '5e' },
+  { value: '4e-a', name: '4e A', level: '4e' },
+  { value: '4e-b', name: '4e B', level: '4e' },
+  { value: '3e-a', name: '3e A', level: '3e' },
+  { value: '3e-b', name: '3e B', level: '3e' },
+  { value: '2nde-a', name: '2nde A', level: '2nde' },
+  { value: '2nde-b', name: '2nde B', level: '2nde' },
+  { value: '1ere-a', name: '1ère A', level: '1ère' },
+  { value: '1ere-b', name: '1ère B', level: '1ère' },
+  { value: 'terminale-a', name: 'Terminale A', level: 'Terminale' },
+  { value: 'terminale-b', name: 'Terminale B', level: 'Terminale' },
 ]
 
 function getErrorMessage(error: unknown): string {
@@ -93,8 +116,7 @@ function App() {
   const [subjects, setSubjects] = useState<SubjectItem[]>(demoSubjects)
   const [grades, setGrades] = useState<GradeItem[]>(demoGrades)
 
-  const [newClassName, setNewClassName] = useState('')
-  const [newClassLevel, setNewClassLevel] = useState('')
+  const [selectedClassTemplate, setSelectedClassTemplate] = useState(classTemplates[0].value)
 
   const [newStudentFirstName, setNewStudentFirstName] = useState('')
   const [newStudentLastName, setNewStudentLastName] = useState('')
@@ -260,19 +282,25 @@ function App() {
 
   async function addClass(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!newClassName.trim() || !newClassLevel.trim()) return
+    const template = classTemplates.find((item) => item.value === selectedClassTemplate)
+    if (!template) return
+    const className = template.name
+    const classLevel = template.level
 
     if (!isRemoteMode || !supabase) {
+      if (classes.some((item) => item.name === className && item.level === classLevel)) {
+        setActionMessage('Cette classe existe déjà dans la liste.')
+        return
+      }
       setClasses((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
-          name: newClassName.trim(),
-          level: newClassLevel.trim(),
+          name: className,
+          level: classLevel,
         },
       ])
-      setNewClassName('')
-      setNewClassLevel('')
+      setActionMessage('Classe ajoutée.')
       return
     }
 
@@ -281,13 +309,17 @@ function App() {
     try {
       const year = new Date().getFullYear()
       const academicYear = `${year}-${year + 1}`
-      const code = `CLS-${newClassName.trim().toUpperCase().replaceAll(' ', '-')}-${Date.now().toString().slice(-4)}`
+      if (classes.some((item) => item.name === className && item.level === classLevel)) {
+        setActionMessage('Cette classe existe déjà dans la base.')
+        return
+      }
+      const code = `CLS-${className.toUpperCase().replaceAll(' ', '-')}-${Date.now().toString().slice(-4)}`
       const { data, error } = await supabase
         .from('classes')
         .insert({
           code,
-          name: newClassName.trim(),
-          level: newClassLevel.trim(),
+          name: className,
+          level: classLevel,
           academic_year: academicYear,
         })
         .select('id')
@@ -307,8 +339,6 @@ function App() {
 
       await loadRemoteData()
       setActionMessage('Classe ajoutée en base avec succès.')
-      setNewClassName('')
-      setNewClassLevel('')
     } catch (error) {
       const message = getErrorMessage(error)
       setActionMessage(`Erreur ajout classe: ${message}`)
@@ -643,18 +673,20 @@ function App() {
         {activeTab === 'classes' && (
           <div className="mt-4">
             <form className="grid gap-3 md:grid-cols-3" onSubmit={addClass}>
-              <input
+              <select
                 className="rounded-lg border border-slate-300 px-3 py-2"
-                placeholder="Nom de classe (ex: 1ère C)"
-                value={newClassName}
-                onChange={(event) => setNewClassName(event.target.value)}
-              />
-              <input
-                className="rounded-lg border border-slate-300 px-3 py-2"
-                placeholder="Niveau"
-                value={newClassLevel}
-                onChange={(event) => setNewClassLevel(event.target.value)}
-              />
+                value={selectedClassTemplate}
+                onChange={(event) => setSelectedClassTemplate(event.target.value)}
+              >
+                {classTemplates.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.name} ({item.level})
+                  </option>
+                ))}
+              </select>
+              <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                Choisis une classe dans la liste puis clique sur « Ajouter classe ».
+              </p>
               <button className="rounded-lg bg-slate-900 px-4 py-2 text-white" disabled={submitting}>
                 {submitting ? 'Traitement...' : 'Ajouter classe'}
               </button>

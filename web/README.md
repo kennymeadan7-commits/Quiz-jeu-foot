@@ -29,6 +29,9 @@ Sans ces variables, l'application démarre quand même mais en mode local sans d
 Avec ces variables, les formulaires CRUD (classes, élèves, matières, notes)
 écrivent et suppriment réellement les données dans Supabase.
 
+Le formulaire d'ajout de classe propose désormais une liste prédéfinie
+(6e A, 6e B, ..., Terminale A/B) à sélectionner.
+
 ## Vérifier que le projet compile
 
 ```bash
