@@ -37,7 +37,8 @@ npm run build
 
 - Page d'accueil dashboard (prototype)
 - Cartes de métriques de classe
-- Sections/modules CRUD (Élèves, Classes, Matières, Notes)
+- Sections/modules CRUD interactifs (Élèves, Classes, Matières, Notes) en mode local
+- Recalcul immédiat des moyennes de classe (T1)
 
 ## Prochaine étape
 
