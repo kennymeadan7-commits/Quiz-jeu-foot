@@ -1767,10 +1767,12 @@ function App() {
                           <td className="border border-gray-800 px-1 py-1" />
                           <td className="border border-gray-800 px-1 py-1" />
                           <td className="border border-gray-800 px-1 py-1" />
+                          <td className="border border-gray-800 px-1 py-1 text-center" />
+                          <td className="border border-gray-800 px-1 py-1 text-center" />
                           <td className="border border-gray-800 px-1 py-1 text-center">
                             {reportAverage === null ? '-' : reportAverage.toFixed(2)}
                           </td>
-                          <td colSpan={5} className="px-0 py-0" />
+                          <td colSpan={3} className="px-0 py-0" />
                         </tr>
                       </tbody>
                     </table>
