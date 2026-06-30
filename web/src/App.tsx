@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from './lib/supabase/client'
 import { type MissingGradePolicy } from './domain/services/average-calculator'
 import { generateBulletinPdf } from './lib/pdf/bulletin-generator'
@@ -52,6 +53,15 @@ const modules: { key: Tab; name: string }[] = [
   { key: 'reports', name: 'Bulletins PDF' },
 ]
 
+const tabRoutes: Record<Tab, string> = {
+  dashboard: '/',
+  classes: '/classes',
+  students: '/eleves',
+  subjects: '/matieres',
+  grades: '/notes',
+  reports: '/bulletins',
+}
+
 const schoolName = 'CEG 5 DOGBO'
 
 const classTemplates: ClassTemplate[] = [
@@ -93,6 +103,12 @@ function getPeriodLabel(period: Period | string): string {
   if (period === 'S2') return 'Semestre 2'
   if (period === 'Annuel') return 'Annuel'
   return period
+}
+
+function getTabFromPath(pathname: string): Tab {
+  const normalizedPath = pathname.toLowerCase()
+  const entry = Object.entries(tabRoutes).find(([, route]) => route === normalizedPath)
+  return (entry?.[0] as Tab | undefined) ?? 'dashboard'
 }
 
 function getErrorMessage(error: unknown): string {
@@ -139,6 +155,8 @@ function rankRows(rows: StudentAverageRow[]): StudentRankingRow[] {
 }
 
 function App() {
+  const location = useLocation()
+  const navigate = useNavigate()
   const isRemoteMode = hasSupabaseConfig && Boolean(supabase)
 
   const [loading, setLoading] = useState(true)
@@ -147,7 +165,7 @@ function App() {
   const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [studentSourceTable, setStudentSourceTable] = useState<StudentSourceTable>('eleves')
 
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard')
+  const activeTab = useMemo(() => getTabFromPath(location.pathname), [location.pathname])
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('S1')
   const [missingPolicy, setMissingPolicy] = useState<MissingGradePolicy>('ignore')
 
@@ -201,6 +219,13 @@ function App() {
 
   const isLoading = loading
   const error = errorMessage
+
+  useEffect(() => {
+    const knownRoutes = new Set(Object.values(tabRoutes))
+    if (!knownRoutes.has(location.pathname.toLowerCase())) {
+      navigate('/', { replace: true })
+    }
+  }, [location.pathname, navigate])
 
   async function fetchStudentsFromSupabase(): Promise<{
     sourceTable: StudentSourceTable
@@ -919,7 +944,10 @@ function App() {
               className={`mt-6 rounded-lg px-4 py-2 text-sm font-medium text-white ${
                 activeTab === module.key ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-slate-900 hover:bg-slate-700'
               }`}
-              onClick={() => setActiveTab(module.key)}
+              onClick={() => {
+                const route = tabRoutes[module.key]
+                window.open(route, '_blank', 'noopener,noreferrer')
+              }}
             >
               Ouvrir
             </button>
