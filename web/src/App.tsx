@@ -1764,6 +1764,7 @@ function App() {
                   <section className="mt-1 grid grid-cols-3 gap-1 text-[10px]">
                     <div className="border border-gray-800 p-2">
                       <p className="mb-1 border-b border-gray-800 font-semibold uppercase">Profil de la classe</p>
+                      <p>Effectif : {reportClassStudents.length}</p>
                       <p>Moy. Classe : {classAverageForPeriod === null ? '-' : classAverageForPeriod.toFixed(2)}</p>
                       <p>Meilleure : {classBestAverage === null ? '-' : classBestAverage.toFixed(2)}</p>
                       <p>Plus faible : {classWeakAverage === null ? '-' : classWeakAverage.toFixed(2)}</p>
