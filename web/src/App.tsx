@@ -946,12 +946,7 @@ function App() {
               }`}
               onClick={() => {
                 const route = tabRoutes[module.key]
-                const popupFeatures = 'popup=yes,width=1400,height=900,left=120,top=80,noopener,noreferrer'
-                const popup = window.open(route, `ceg5-${module.key}`, popupFeatures)
-                if (!popup) {
-                  // Fallback when popup is blocked by the browser.
-                  window.open(route, '_blank', 'noopener,noreferrer')
-                }
+                navigate(route)
               }}
             >
               Ouvrir
