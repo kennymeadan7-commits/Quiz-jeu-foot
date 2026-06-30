@@ -859,9 +859,12 @@ function App() {
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8 rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 p-7 text-white shadow-2xl ring-1 ring-white/10">
-        <p className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs uppercase tracking-wider text-slate-100">
-          {schoolName}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs uppercase tracking-wider text-slate-100">
+            {schoolName}
+          </p>
+          <BeninFlagBadge />
+        </div>
         <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Gestion des moyennes scolaires - {schoolName}</h1>
         <p className="mt-3 max-w-3xl text-slate-200/95">
           Application adaptée pour {schoolName} : CRUD, moyennes pondérées, classement, configuration métier et export PDF.
@@ -1523,6 +1526,22 @@ function SimpleTable({ title, headers, rows, emptyText }: SimpleTableProps) {
           </table>
         </div>
       )}
+    </div>
+  )
+}
+
+function BeninFlagBadge() {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs text-slate-100 ring-1 ring-white/20">
+      <span className="sr-only">Drapeau du Bénin</span>
+      <span className="relative block h-4 w-6 overflow-hidden rounded-sm ring-1 ring-black/20">
+        <span className="absolute inset-y-0 left-0 w-2/5 bg-[#008751]" />
+        <span className="absolute inset-y-0 right-0 w-3/5">
+          <span className="block h-1/2 w-full bg-[#FCD116]" />
+          <span className="block h-1/2 w-full bg-[#E8112D]" />
+        </span>
+      </span>
+      <span className="font-medium">République du Bénin</span>
     </div>
   )
 }
