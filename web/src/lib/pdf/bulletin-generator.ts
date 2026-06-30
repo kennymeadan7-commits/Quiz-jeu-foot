@@ -21,27 +21,39 @@ export type BulletinPayload = {
 
 export function generateBulletinPdf(payload: BulletinPayload): void {
   const doc = new jsPDF()
+  // En-tête institutionnel République du Bénin
+  doc.setFillColor(0, 135, 81)
+  doc.rect(14, 10, 8, 12, 'F')
+  doc.setFillColor(252, 209, 22)
+  doc.rect(22, 10, 12, 6, 'F')
+  doc.setFillColor(232, 17, 45)
+  doc.rect(22, 16, 12, 6, 'F')
+
+  doc.setFontSize(10)
+  doc.text('REPUBLIQUE DU BENIN', 38, 14)
+  doc.text('CEG 5 DOGBO', 38, 20)
+
   doc.setFontSize(16)
-  doc.text('Bulletin scolaire', 14, 16)
+  doc.text('Bulletin scolaire', 14, 30)
 
   doc.setFontSize(11)
-  doc.text(`Eleve : ${payload.studentFullName}`, 14, 26)
-  doc.text(`Classe : ${payload.className}`, 14, 33)
-  doc.text(`Periode : ${payload.period}`, 14, 40)
+  doc.text(`Eleve : ${payload.studentFullName}`, 14, 40)
+  doc.text(`Classe : ${payload.className}`, 14, 47)
+  doc.text(`Periode : ${payload.period}`, 14, 54)
   doc.text(
     `Moyenne : ${payload.average === null ? 'N/A' : `${payload.average.toFixed(2)} / 20`}`,
     14,
-    47,
+    61,
   )
-  doc.text(`Rang : ${payload.rank ?? 'N/A'}`, 14, 54)
+  doc.text(`Rang : ${payload.rank ?? 'N/A'}`, 14, 68)
   doc.text(
     `Politique note manquante : ${payload.missingPolicy === 'ignore' ? 'ignore' : 'zero'}`,
     14,
-    61,
+    75,
   )
 
   autoTable(doc, {
-    startY: 68,
+    startY: 82,
     head: [['Matiere', 'Type', 'Coefficient', 'Note']],
     body: payload.lines.map((line) => [
       line.subject,
