@@ -9,6 +9,26 @@ body,
 body {
   margin: 0;
   font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  background-color: #f1f5f9;
+  background:
+    radial-gradient(circle at 10% 10%, #dbeafe 0%, transparent 35%),
+    radial-gradient(circle at 90% 0%, #ddd6fe 0%, transparent 30%),
+    #f1f5f9;
   color: #0f172a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+input,
+select,
+button {
+  transition: all 160ms ease;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
 }

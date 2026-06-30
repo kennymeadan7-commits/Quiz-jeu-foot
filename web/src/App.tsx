@@ -720,10 +720,12 @@ function App() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <header className="mb-8 rounded-2xl bg-slate-900 p-6 text-white shadow-lg">
-        <p className="text-sm uppercase tracking-wide text-slate-300">Secondaire</p>
+      <header className="mb-8 rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 p-7 text-white shadow-2xl ring-1 ring-white/10">
+        <p className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs uppercase tracking-wider text-slate-100">
+          Secondaire
+        </p>
         <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Gestion des moyennes scolaires</h1>
-        <p className="mt-3 max-w-3xl text-slate-200">
+        <p className="mt-3 max-w-3xl text-slate-200/95">
           Application complète : CRUD, moyennes pondérées, classement, configuration métier et export PDF.
         </p>
       </header>
@@ -735,7 +737,7 @@ function App() {
         <StatCard label="Source" value={isRemoteMode ? 'Supabase' : 'Local'} />
       </section>
 
-      <section className="mb-6 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <section className="mb-6 rounded-2xl bg-white/90 p-5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
         <div className="flex flex-wrap items-center gap-3">
           <label className="text-sm font-medium text-slate-700">Période :</label>
           <select
@@ -764,12 +766,21 @@ function App() {
 
       <section className="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {modules.map((module) => (
-          <article key={module.key} className="rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+          <article
+            key={module.key}
+            className={`rounded-2xl p-5 shadow-md ring-1 transition ${
+              activeTab === module.key
+                ? 'bg-indigo-50 ring-indigo-300 shadow-indigo-100'
+                : 'bg-white ring-slate-200 hover:-translate-y-0.5 hover:shadow-lg'
+            }`}
+          >
             <h3 className="text-lg font-semibold text-slate-900">{module.name}</h3>
             <p className="mt-2 text-sm text-slate-600">{module.description}</p>
             <button
               type="button"
-              className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+              className={`mt-4 rounded-lg px-4 py-2 text-sm font-medium text-white ${
+                activeTab === module.key ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-slate-900 hover:bg-slate-700'
+              }`}
               onClick={() => setActiveTab(module.key)}
             >
               Ouvrir
@@ -778,7 +789,7 @@ function App() {
         ))}
       </section>
 
-      <section className="mb-8 rounded-xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <section className="mb-8 rounded-2xl bg-white/95 p-5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
         {actionMessage ? <p className="mb-3 rounded-lg bg-slate-100 px-3 py-2 text-sm text-slate-700">{actionMessage}</p> : null}
         {errorMessage ? <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-700">{errorMessage}</p> : null}
 
@@ -842,9 +853,9 @@ function App() {
               </button>
             </form>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 text-left">
+                <thead className="bg-slate-100 text-left">
                   <tr>
                     <th className="px-3 py-2">Nom</th>
                     <th className="px-3 py-2">Niveau</th>
@@ -875,10 +886,10 @@ function App() {
                           />
                         </td>
                         <td className="px-3 py-2 space-x-2">
-                          <button className="rounded bg-emerald-600 px-2 py-1 text-white" onClick={() => void updateClass(row.id)}>
+                          <button type="button" className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-white hover:bg-emerald-500" onClick={() => void updateClass(row.id)}>
                             Enregistrer
                           </button>
-                          <button className="rounded bg-rose-600 px-2 py-1 text-white" onClick={() => void deleteClass(row.id)}>
+                          <button type="button" className="rounded-md bg-rose-600 px-2.5 py-1.5 text-white hover:bg-rose-500" onClick={() => void deleteClass(row.id)}>
                             Supprimer
                           </button>
                         </td>
@@ -923,7 +934,7 @@ function App() {
               </button>
             </form>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50 text-left">
                   <tr>
@@ -976,10 +987,10 @@ function App() {
                           </select>
                         </td>
                         <td className="px-3 py-2 space-x-2">
-                          <button className="rounded bg-emerald-600 px-2 py-1 text-white" onClick={() => void updateStudent(row.id)}>
+                          <button type="button" className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-white hover:bg-emerald-500" onClick={() => void updateStudent(row.id)}>
                             Enregistrer
                           </button>
-                          <button className="rounded bg-rose-600 px-2 py-1 text-white" onClick={() => void deleteStudent(row.id)}>
+                          <button type="button" className="rounded-md bg-rose-600 px-2.5 py-1.5 text-white hover:bg-rose-500" onClick={() => void deleteStudent(row.id)}>
                             Supprimer
                           </button>
                         </td>
@@ -1016,7 +1027,7 @@ function App() {
               </button>
             </form>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50 text-left">
                   <tr>
@@ -1052,10 +1063,10 @@ function App() {
                           />
                         </td>
                         <td className="px-3 py-2 space-x-2">
-                          <button className="rounded bg-emerald-600 px-2 py-1 text-white" onClick={() => void updateSubject(row.id)}>
+                          <button type="button" className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-white hover:bg-emerald-500" onClick={() => void updateSubject(row.id)}>
                             Enregistrer
                           </button>
-                          <button className="rounded bg-rose-600 px-2 py-1 text-white" onClick={() => void deleteSubject(row.id)}>
+                          <button type="button" className="rounded-md bg-rose-600 px-2.5 py-1.5 text-white hover:bg-rose-500" onClick={() => void deleteSubject(row.id)}>
                             Supprimer
                           </button>
                         </td>
@@ -1129,7 +1140,7 @@ function App() {
               </button>
             </form>
 
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
               <table className="min-w-full divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50 text-left">
                   <tr>
@@ -1228,10 +1239,10 @@ function App() {
                           </div>
                         </td>
                         <td className="px-3 py-2 space-x-2">
-                          <button className="rounded bg-emerald-600 px-2 py-1 text-white" onClick={() => void updateGrade(row.id)}>
+                          <button type="button" className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-white hover:bg-emerald-500" onClick={() => void updateGrade(row.id)}>
                             Enregistrer
                           </button>
-                          <button className="rounded bg-rose-600 px-2 py-1 text-white" onClick={() => void deleteGrade(row.id)}>
+                          <button type="button" className="rounded-md bg-rose-600 px-2.5 py-1.5 text-white hover:bg-rose-500" onClick={() => void deleteGrade(row.id)}>
                             Supprimer
                           </button>
                         </td>
@@ -1270,7 +1281,7 @@ function App() {
                   </option>
                 ))}
               </select>
-              <button className="rounded-lg bg-slate-900 px-4 py-2 text-white" onClick={exportBulletin}>
+              <button className="rounded-lg bg-indigo-600 px-4 py-2 text-white hover:bg-indigo-500" onClick={exportBulletin}>
                 Exporter PDF
               </button>
             </div>
@@ -1288,9 +1299,9 @@ function App() {
 type StatCardProps = { label: string; value: string }
 function StatCard({ label, value }: StatCardProps) {
   return (
-    <article className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-      <p className="text-sm text-slate-500">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
+    <article className="rounded-2xl bg-white/90 p-4 shadow-lg ring-1 ring-slate-200 backdrop-blur">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-bold text-slate-900">{value}</p>
     </article>
   )
 }
@@ -1304,16 +1315,16 @@ type SimpleTableProps = {
 function SimpleTable({ title, headers, rows, emptyText }: SimpleTableProps) {
   return (
     <div>
-      <h3 className="mb-2 text-lg font-semibold text-slate-900">{title}</h3>
+      <h3 className="mb-3 text-lg font-semibold text-slate-900">{title}</h3>
       {rows.length === 0 ? (
         <p className="text-sm text-slate-600">{emptyText}</p>
       ) : (
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <thead className="bg-slate-50 text-left">
+            <thead className="bg-slate-100 text-left">
               <tr>
                 {headers.map((header) => (
-                  <th key={header} className="px-3 py-2">
+                  <th key={header} className="px-3 py-2 font-semibold text-slate-700">
                     {header}
                   </th>
                 ))}
@@ -1321,7 +1332,7 @@ function SimpleTable({ title, headers, rows, emptyText }: SimpleTableProps) {
             </thead>
             <tbody className="divide-y divide-slate-100 bg-white">
               {rows.map((row, index) => (
-                <tr key={`${title}-${index}`}>
+                <tr key={`${title}-${index}`} className="hover:bg-slate-50">
                   {row.map((cell, cellIndex) => (
                     <td key={`${title}-${index}-${cellIndex}`} className="px-3 py-2">
                       {cell}
