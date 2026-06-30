@@ -8,10 +8,23 @@ pour l'application de gestion des moyennes du secondaire.
 ```bash
 cd web
 npm install
+cp .env.example .env.local
+# puis renseigner les valeurs Supabase
 npm run dev
 ```
 
 Ensuite, ouvre l'URL affichée dans le terminal (en général : `http://localhost:5173`).
+
+## Variables d'environnement
+
+Créer `web/.env.local` :
+
+```env
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+Sans ces variables, l'application démarre quand même mais en mode local sans données distantes.
 
 ## Vérifier que le projet compile
 
