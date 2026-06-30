@@ -10,7 +10,7 @@ import {
 } from './utils/grades'
 
 type Tab = 'dashboard' | 'classes' | 'students' | 'subjects' | 'grades' | 'reports'
-type Period = 'T1' | 'T2' | 'T3' | 'S1' | 'S2' | 'Annuel'
+type Period = 'S1' | 'S2'
 type AssessmentType = 'Interrogation' | 'Devoir'
 
 type ClassItem = { id: string; name: string; level: string }
@@ -36,7 +36,7 @@ type StudentRankingRow = {
 }
 type StudentSourceTable = 'eleves' | 'students'
 
-const periodOptions: Period[] = ['T1', 'T2', 'T3', 'S1', 'S2', 'Annuel']
+const periodOptions: Period[] = ['S1', 'S2']
 const assessmentTypeOptions: AssessmentType[] = ['Interrogation', 'Devoir']
 
 const modules: { key: Tab; name: string; description: string }[] = [
@@ -74,10 +74,10 @@ const demoSubjects: SubjectItem[] = [
   { id: 'sub-2', name: 'Français', coefficient: 3 },
 ]
 const demoGrades: GradeItem[] = [
-  { id: 'grd-1', studentId: 'std-1', subjectId: 'sub-1', period: 'T1', assessmentType: 'Interrogation', grade: 14 },
-  { id: 'grd-2', studentId: 'std-1', subjectId: 'sub-2', period: 'T1', assessmentType: 'Devoir', grade: 12 },
-  { id: 'grd-3', studentId: 'std-2', subjectId: 'sub-1', period: 'T1', assessmentType: 'Interrogation', grade: 10 },
-  { id: 'grd-4', studentId: 'std-2', subjectId: 'sub-2', period: 'T1', assessmentType: 'Devoir', grade: 11 },
+  { id: 'grd-1', studentId: 'std-1', subjectId: 'sub-1', period: 'S1', assessmentType: 'Interrogation', grade: 14 },
+  { id: 'grd-2', studentId: 'std-1', subjectId: 'sub-2', period: 'S1', assessmentType: 'Devoir', grade: 12 },
+  { id: 'grd-3', studentId: 'std-2', subjectId: 'sub-1', period: 'S1', assessmentType: 'Interrogation', grade: 10 },
+  { id: 'grd-4', studentId: 'std-2', subjectId: 'sub-2', period: 'S1', assessmentType: 'Devoir', grade: 11 },
 ]
 
 function normalizeAssessmentType(value: string | null | undefined): AssessmentType {
@@ -137,7 +137,7 @@ function App() {
   const [studentSourceTable, setStudentSourceTable] = useState<StudentSourceTable>('eleves')
 
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
-  const [selectedPeriod, setSelectedPeriod] = useState<Period>('T1')
+  const [selectedPeriod, setSelectedPeriod] = useState<Period>('S1')
   const [missingPolicy, setMissingPolicy] = useState<MissingGradePolicy>('ignore')
 
   const [classes, setClasses] = useState<ClassItem[]>(demoClasses)
@@ -160,13 +160,13 @@ function App() {
 
   const [newGradeStudentId, setNewGradeStudentId] = useState('std-1')
   const [newGradeSubjectId, setNewGradeSubjectId] = useState('sub-1')
-  const [newGradePeriod, setNewGradePeriod] = useState<Period>('T1')
+  const [newGradePeriod, setNewGradePeriod] = useState<Period>('S1')
   const [newGradeAssessmentType, setNewGradeAssessmentType] = useState<AssessmentType>('Interrogation')
   const [newGradeValue, setNewGradeValue] = useState('10')
   const [newGradeMissing, setNewGradeMissing] = useState(false)
 
   const [reportStudentId, setReportStudentId] = useState('std-1')
-  const [reportPeriod, setReportPeriod] = useState<Period>('T1')
+  const [reportPeriod, setReportPeriod] = useState<Period>('S1')
   const [reportSignerFullName, setReportSignerFullName] = useState('')
 
   const [editingClass, setEditingClass] = useState<Record<string, { name: string; level: string }>>({})
@@ -866,7 +866,7 @@ function App() {
 
       <section className="mb-6 rounded-2xl bg-white/90 p-5 shadow-lg ring-1 ring-slate-200 backdrop-blur">
         <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm font-medium text-slate-700">Période :</label>
+          <label className="text-sm font-medium text-slate-700">Semestre :</label>
           <select
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
             value={selectedPeriod}
@@ -1284,7 +1284,7 @@ function App() {
                   <tr>
                     <th className="px-3 py-2">Élève</th>
                     <th className="px-3 py-2">Matière</th>
-                    <th className="px-3 py-2">Période</th>
+                    <th className="px-3 py-2">Semestre</th>
                     <th className="px-3 py-2">Type</th>
                     <th className="px-3 py-2">Note</th>
                     <th className="px-3 py-2">Actions</th>
