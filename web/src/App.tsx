@@ -43,13 +43,13 @@ const periodOptions: Array<{ value: Period; label: string }> = [
 ]
 const assessmentTypeOptions: AssessmentType[] = ['Interrogation', 'Devoir']
 
-const modules: { key: Tab; name: string; description: string }[] = [
-  { key: 'dashboard', name: 'Dashboard', description: 'Vue globale avec moyennes et classement.' },
-  { key: 'classes', name: 'Classes', description: 'CRUD classes avec liste prédéfinie.' },
-  { key: 'students', name: 'Élèves', description: 'CRUD élèves (classe associée).' },
-  { key: 'subjects', name: 'Matières', description: 'CRUD matières et coefficients.' },
-  { key: 'grades', name: 'Notes', description: 'CRUD notes avec gestion des absences.' },
-  { key: 'reports', name: 'Bulletins PDF', description: 'Export PDF par élève et période.' },
+const modules: { key: Tab; name: string }[] = [
+  { key: 'dashboard', name: 'Tableau de bord' },
+  { key: 'classes', name: 'Classes' },
+  { key: 'students', name: 'Élèves' },
+  { key: 'subjects', name: 'Matières' },
+  { key: 'grades', name: 'Notes' },
+  { key: 'reports', name: 'Bulletins PDF' },
 ]
 
 const schoolName = 'CEG 5 DOGBO'
@@ -866,9 +866,6 @@ function App() {
           <BeninFlagBadge />
         </div>
         <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Gestion des moyennes scolaires - {schoolName}</h1>
-        <p className="mt-3 max-w-3xl text-slate-200/95">
-          Application adaptée pour {schoolName} : CRUD, moyennes pondérées, classement, configuration métier et export PDF.
-        </p>
       </header>
 
       <section className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -911,15 +908,15 @@ function App() {
             key={module.key}
             className={`rounded-2xl p-5 shadow-md ring-1 transition ${
               activeTab === module.key
-                ? 'bg-indigo-50 ring-indigo-300 shadow-indigo-100'
+                ? 'bg-gradient-to-br from-indigo-50 to-blue-50 ring-indigo-300 shadow-indigo-100'
                 : 'bg-white ring-slate-200 hover:-translate-y-0.5 hover:shadow-lg'
             }`}
           >
+            <div className="mb-4 h-1.5 w-12 rounded-full bg-indigo-500/80" />
             <h3 className="text-lg font-semibold text-slate-900">{module.name}</h3>
-            <p className="mt-2 text-sm text-slate-600">{module.description}</p>
             <button
               type="button"
-              className={`mt-4 rounded-lg px-4 py-2 text-sm font-medium text-white ${
+              className={`mt-6 rounded-lg px-4 py-2 text-sm font-medium text-white ${
                 activeTab === module.key ? 'bg-indigo-600 hover:bg-indigo-500' : 'bg-slate-900 hover:bg-slate-700'
               }`}
               onClick={() => setActiveTab(module.key)}
@@ -974,7 +971,7 @@ function App() {
         {activeTab === 'classes' && (
           <div className="space-y-4">
             <h2 className="text-xl font-semibold text-slate-900">CRUD Classes</h2>
-            <form className="grid gap-3 md:grid-cols-3" onSubmit={(event) => void addClass(event)}>
+            <form className="grid gap-3 md:grid-cols-2" onSubmit={(event) => void addClass(event)}>
               <select
                 className="rounded-lg border border-slate-300 px-3 py-2"
                 value={selectedClassTemplate}
@@ -986,9 +983,6 @@ function App() {
                   </option>
                 ))}
               </select>
-              <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                Sélectionne une classe puis clique sur Ajouter.
-              </p>
               <button className="rounded-lg bg-slate-900 px-4 py-2 text-white" disabled={submitting}>
                 {submitting ? 'Traitement...' : 'Ajouter classe'}
               </button>
@@ -1467,10 +1461,6 @@ function App() {
               </button>
             </div>
 
-            <p className="text-sm text-slate-600">
-              Le bulletin inclut : type d'évaluation (interrogation/devoir), notes, coefficients, moyenne, rang, puis en bas :
-              nom et prénom suivi de la signature.
-            </p>
           </div>
         )}
       </section>
