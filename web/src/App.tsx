@@ -202,6 +202,7 @@ function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
   const [authError, setAuthError] = useState<string | null>(null)
+  const [authInfo, setAuthInfo] = useState<string | null>(null)
   const [authSubmitting, setAuthSubmitting] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
   const [session, setSession] = useState<Session | null>(null)
@@ -242,7 +243,7 @@ function App() {
   const [newGradeSubjectId, setNewGradeSubjectId] = useState('sub-1')
   const [newGradePeriod, setNewGradePeriod] = useState<Period>('S1')
   const [notesAccessRole, setNotesAccessRole] = useState<NotesAccessRole>('admin')
-  const [teacherSubjectId, setTeacherSubjectId] = useState('sub-1')
+  const [teacherSubjectId, setTeacherSubjectId] = useState('')
   const [notesSectionSubjectId, setNotesSectionSubjectId] = useState<string>('all')
   const [interrogationsPerSubject, setInterrogationsPerSubject] = useState<Record<string, number>>({})
   const [interrogationCountDraft, setInterrogationCountDraft] = useState('2')
@@ -321,11 +322,30 @@ function App() {
     if (!supabase) return
     setAuthSubmitting(true)
     setAuthError(null)
+    setAuthInfo(null)
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) throw error
     } catch (error) {
       setAuthError(`Connexion échouée: ${getErrorMessage(error)}`)
+    } finally {
+      setAuthSubmitting(false)
+    }
+  }
+
+  async function handleSignup(email: string, password: string): Promise<void> {
+    if (!supabase) return
+    setAuthSubmitting(true)
+    setAuthError(null)
+    setAuthInfo(null)
+    try {
+      const { error } = await supabase.auth.signUp({ email, password })
+      if (error) throw error
+      setAuthInfo(
+        "Compte créé. Vérifie ta boîte mail pour confirmer l'inscription, puis connecte-toi. L'administrateur assignera ta matière.",
+      )
+    } catch (error) {
+      setAuthError(`Création du compte échouée: ${getErrorMessage(error)}`)
     } finally {
       setAuthSubmitting(false)
     }
@@ -684,8 +704,10 @@ function App() {
     () =>
       notesAccessRole === 'admin'
         ? new Set(subjects.map((subject) => subject.id))
-        : new Set([teacherSubjectId]),
-    [notesAccessRole, subjects, teacherSubjectId],
+        : profileSubjectId
+          ? new Set([profileSubjectId])
+          : new Set<string>(),
+    [notesAccessRole, profileSubjectId, subjects],
   )
   const visibleSubjects = useMemo(
     () => subjects.filter((subject) => allowedSubjectIds.has(subject.id)),
@@ -695,6 +717,7 @@ function App() {
     () => grades.filter((grade) => allowedSubjectIds.has(grade.subjectId)),
     [allowedSubjectIds, grades],
   )
+  const canManageNotes = notesAccessRole === 'admin' || Boolean(profileSubjectId)
 
   const currentInterrogationCount = useMemo(
     () =>
@@ -1597,15 +1620,41 @@ function App() {
   }
 
   if (isLoginPage) {
-    return <Login isSubmitting={authSubmitting} errorMessage={authError} onLogin={handleLogin} />
+    return (
+      <Login
+        isSubmitting={authSubmitting}
+        errorMessage={authError}
+        infoMessage={authInfo}
+        onLogin={handleLogin}
+        onSignup={handleSignup}
+      />
+    )
   }
 
-  if (!session || !profileRole) {
+  if (!session) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700 shadow ring-1 ring-amber-200">
           Session non active. Redirection vers la connexion...
         </p>
+      </main>
+    )
+  }
+
+  if (!profileRole) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
+        <div className="rounded-xl bg-amber-50 px-5 py-4 text-sm text-amber-800 shadow ring-1 ring-amber-200">
+          <p>Compte créé, mais profil non configuré.</p>
+          <p className="mt-1">Contacte un administrateur pour finaliser ton rôle.</p>
+          <button
+            type="button"
+            className="mt-3 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white"
+            onClick={() => void handleLogout()}
+          >
+            Se déconnecter
+          </button>
+        </div>
       </main>
     )
   }
@@ -2017,6 +2066,11 @@ function App() {
                   </span>
                 ) : null}
               </div>
+              {notesAccessRole === 'teacher' && !profileSubjectId ? (
+                <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 ring-1 ring-amber-200">
+                  Aucune matière assignée à ce professeur. Demande à un administrateur d'assigner ta matière.
+                </p>
+              ) : null}
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 {notesAccessRole === 'admin' ? (
                   <button
@@ -2044,7 +2098,13 @@ function App() {
               </div>
             </section>
 
-            {!massEntryMode && (
+            {!canManageNotes ? (
+              <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-700 ring-1 ring-amber-200">
+                Saisie des notes indisponible tant que la matière du professeur n'est pas assignée.
+              </p>
+            ) : null}
+
+            {canManageNotes && !massEntryMode && (
               <>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Saisie individuelle</h3>
                 <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
@@ -2395,7 +2455,7 @@ function App() {
               </>
             )}
 
-            {massEntryMode && (
+            {canManageNotes && massEntryMode && (
               <div className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
                 <p className="text-sm font-medium text-indigo-900">
                   Mode de saisie de masse (clavier) : Entrée/Flèche bas = ligne suivante, Flèche haut = ligne précédente.

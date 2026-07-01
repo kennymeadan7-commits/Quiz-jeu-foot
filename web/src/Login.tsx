@@ -3,15 +3,29 @@ import { useState, type FormEvent } from 'react'
 type LoginProps = {
   isSubmitting: boolean
   errorMessage: string | null
+  infoMessage: string | null
   onLogin: (email: string, password: string) => Promise<void>
+  onSignup: (email: string, password: string) => Promise<void>
 }
 
-function Login({ isSubmitting, errorMessage, onLogin }: LoginProps) {
+function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: LoginProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [mode, setMode] = useState<'login' | 'signup'>('login')
+  const [localError, setLocalError] = useState<string | null>(null)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    setLocalError(null)
+    if (mode === 'signup') {
+      if (password !== confirmPassword) {
+        setLocalError('Les mots de passe ne correspondent pas.')
+        return
+      }
+      await onSignup(email, password)
+      return
+    }
     await onLogin(email, password)
   }
 
@@ -42,9 +56,35 @@ function Login({ isSubmitting, errorMessage, onLogin }: LoginProps) {
 
         <div className="p-8">
           <h2 className="text-2xl font-semibold text-slate-900">Connexion</h2>
-          <p className="mt-2 text-sm text-slate-600">Identifie-toi pour accéder à ton espace.</p>
+          <p className="mt-2 text-sm text-slate-600">
+            {mode === 'login'
+              ? 'Identifie-toi pour accéder à ton espace.'
+              : 'Crée ton compte professeur. Un administrateur attribuera ta matière.'}
+          </p>
+          <div className="mt-4 inline-flex overflow-hidden rounded-lg ring-1 ring-slate-300">
+            <button
+              type="button"
+              className={`px-3 py-1.5 text-xs font-semibold ${mode === 'login' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'}`}
+              onClick={() => setMode('login')}
+            >
+              Connexion
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1.5 text-xs font-semibold ${mode === 'signup' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700'}`}
+              onClick={() => setMode('signup')}
+            >
+              Créer un compte
+            </button>
+          </div>
+          {localError ? (
+            <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{localError}</p>
+          ) : null}
           {errorMessage ? (
             <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">{errorMessage}</p>
+          ) : null}
+          {infoMessage ? (
+            <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{infoMessage}</p>
           ) : null}
 
           <form className="mt-5 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
@@ -71,12 +111,25 @@ function Login({ isSubmitting, errorMessage, onLogin }: LoginProps) {
                 required
               />
             </label>
+            {mode === 'signup' ? (
+              <label className="block space-y-1">
+                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Confirmer le mot de passe</span>
+                <input
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm"
+                  type="password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  required
+                />
+              </label>
+            ) : null}
 
             <button
               className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Connexion en cours...' : 'Se connecter'}
+              {isSubmitting ? 'Traitement...' : mode === 'login' ? 'Se connecter' : 'Créer le compte'}
             </button>
           </form>
         </div>
