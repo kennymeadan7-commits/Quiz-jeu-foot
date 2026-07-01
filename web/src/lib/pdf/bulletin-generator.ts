@@ -63,18 +63,18 @@ export function generateBulletinPdf(payload: BulletinPayload): void {
   doc.text('BULLETIN DE NOTES', 165, 18, { align: 'center' })
   doc.setFontSize(10)
   doc.setFont('times', 'normal')
-  doc.text(`Annee scolaire : ${payload.schoolYear}`, 165, 23, { align: 'center' })
+  doc.text(`Année scolaire : ${payload.schoolYear}`, 165, 23, { align: 'center' })
 
   // Trois zones sous en-tete
   doc.rect(10, 30, 80, 24)
   doc.rect(90, 30, 30, 24)
   doc.rect(120, 30, 80, 24)
   doc.setFont('times', 'bold')
-  doc.text("IDENTITE DE L'ELEVE", 12, 35)
+  doc.text("IDENTITÉ DE L'ÉLÈVE", 12, 35)
   doc.setFont('times', 'normal')
-  doc.text(`Nom et prenoms: ${payload.studentFullName}`, 12, 40)
+  doc.text(`Nom et prénoms: ${payload.studentFullName}`, 12, 40)
   doc.text(`Classe: ${payload.className}`, 12, 45)
-  doc.text(`Periode: ${payload.period}`, 12, 50)
+  doc.text(`Période: ${payload.period}`, 12, 50)
 
   // Mini drapeau centre
   doc.setFillColor(0, 135, 81)
@@ -89,7 +89,7 @@ export function generateBulletinPdf(payload: BulletinPayload): void {
   doc.setFont('times', 'normal')
   doc.text(`Effectif: ${payload.classSize ?? '-'}`, 122, 40)
   doc.text(`Moyenne classe: ${fmt(payload.classAverage)}`, 122, 45)
-  doc.text(`Eleves >= 10: ${payload.classAboveAverageCount ?? '-'}`, 122, 50)
+  doc.text(`Élèves >= 10: ${payload.classAboveAverageCount ?? '-'}`, 122, 50)
 
   const tableRows = payload.lines.map((line) => [
     line.subject,
@@ -109,7 +109,7 @@ export function generateBulletinPdf(payload: BulletinPayload): void {
 
   autoTable(doc, {
     startY: 56,
-    head: [['Matiere', 'Moy Inter', 'Dev1', 'Dev2', 'Moi/20', 'Coef.', 'Moy. Coeff', 'Rang', 'Apprec.', 'Visa']],
+    head: [['Matière', 'Moy Inter', 'Dev1', 'Dev2', 'Moi/20', 'Coef.', 'Moy. Coeff', 'Rang', 'Appréc.', 'Visa']],
     body: tableRows,
     theme: 'grid',
     styles: {
@@ -154,7 +154,7 @@ export function generateBulletinPdf(payload: BulletinPayload): void {
   doc.setFont('times', 'bold')
   doc.text('PROFIL DE LA CLASSE', 12, blocksY + 5)
   doc.text('DISCIPLINE', 75, blocksY + 5)
-  doc.text("RESULTATS DE L'ELEVE", 138, blocksY + 5)
+  doc.text("RÉSULTATS DE L'ÉLÈVE", 138, blocksY + 5)
   doc.setFont('times', 'normal')
   doc.text(`Moy. classe: ${fmt(payload.classAverage)}`, 12, blocksY + 10)
   doc.text(`Meilleure: ${fmt(payload.classBestAverage)}`, 12, blocksY + 15)
@@ -171,7 +171,7 @@ export function generateBulletinPdf(payload: BulletinPayload): void {
   const decisionY = blocksY + 26
   doc.rect(10, decisionY, 190, 18)
   doc.setFont('times', 'bold')
-  doc.text('DECISIONS DES CONSEILS DE CLASSE ET DE DISCIPLINE', 12, decisionY + 5)
+  doc.text('DÉCISIONS DES CONSEILS DE CLASSE ET DE DISCIPLINE', 12, decisionY + 5)
   doc.setFont('times', 'normal')
   doc.rect(12, decisionY + 8, 3, 3)
   doc.text('Passage', 17, decisionY + 10.5)
@@ -187,16 +187,16 @@ export function generateBulletinPdf(payload: BulletinPayload): void {
   doc.rect(10, footerY, 95, 24)
   doc.rect(105, footerY, 95, 24)
   doc.setFont('times', 'bold')
-  doc.text('RECAP DES RESULTATS', 12, footerY + 5)
+  doc.text('RÉCAP DES RÉSULTATS', 12, footerY + 5)
   doc.setFont('times', 'normal')
   doc.text(`Moy. Sem1: ${fmt(payload.recapSem1)}`, 12, footerY + 11)
   doc.text(`Moy. Sem2: ${fmt(payload.recapSem2)}`, 12, footerY + 16)
-  doc.text(`Moy. Annuelle: ${fmt(payload.recapAnnual)}`, 12, footerY + 21)
+  doc.text(`Moy. annuelle: ${fmt(payload.recapAnnual)}`, 12, footerY + 21)
 
   doc.setFont('times', 'bold')
-  doc.text("VISA DU CHEF D'ETABLISSEMENT", 107, footerY + 5)
+  doc.text("VISA DU CHEF D'ÉTABLISSEMENT", 107, footerY + 5)
   doc.setFont('times', 'normal')
-  doc.text(`Nom et prenom: ${payload.signerFullName || '............................'}`, 107, footerY + 12)
+  doc.text(`Nom et prénom: ${payload.signerFullName || '............................'}`, 107, footerY + 12)
   doc.text('Signature et cachet:', 107, footerY + 20)
 
   const fileName = `bulletin-${payload.studentFullName.toLowerCase().replaceAll(' ', '-')}-${payload.period}.pdf`
