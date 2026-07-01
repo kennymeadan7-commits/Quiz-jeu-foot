@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import type { Session } from '@supabase/supabase-js'
 import { hasSupabaseConfig, supabase } from './lib/supabase/client'
 import { type MissingGradePolicy } from './domain/services/average-calculator'
 import { generateBulletinPdf } from './lib/pdf/bulletin-generator'
+import Login from './Login'
 import {
   calculerMoyenneGenerale,
   calculerMoyenneMatiere,
@@ -14,6 +16,7 @@ type Tab = 'dashboard' | 'classes' | 'students' | 'subjects' | 'grades' | 'repor
 type Period = 'S1' | 'S2' | 'Annuel'
 type AssessmentType = 'Interrogation' | 'Devoir'
 type NotesAccessRole = 'admin' | 'teacher'
+type ProfileRole = 'admin' | 'professeur'
 
 type ClassItem = { id: string; name: string; level: string }
 type StudentItem = { id: string; firstName: string; lastName: string; classId: string }
@@ -69,12 +72,22 @@ const modules: { key: Tab; name: string }[] = [
 ]
 
 const tabRoutes: Record<Tab, string> = {
-  dashboard: '/',
+  dashboard: '/dashboard',
   classes: '/classes',
   students: '/eleves',
   subjects: '/matieres',
   grades: '/notes',
   reports: '/bulletins',
+}
+const tabRouteAliases: Record<string, Tab> = {
+  '/': 'dashboard',
+  '/dashboard': 'dashboard',
+  '/classes': 'classes',
+  '/eleves': 'students',
+  '/matieres': 'subjects',
+  '/notes': 'grades',
+  '/notes-professeur': 'grades',
+  '/bulletins': 'reports',
 }
 
 const schoolName = 'CEG 5 DOGBO'
@@ -128,8 +141,7 @@ function getPeriodLabel(period: Period | string): string {
 
 function getTabFromPath(pathname: string): Tab {
   const normalizedPath = pathname.toLowerCase()
-  const entry = Object.entries(tabRoutes).find(([, route]) => route === normalizedPath)
-  return (entry?.[0] as Tab | undefined) ?? 'dashboard'
+  return tabRouteAliases[normalizedPath] ?? 'dashboard'
 }
 
 function roundToTwo(value: number): number {
@@ -183,14 +195,28 @@ function App() {
   const location = useLocation()
   const navigate = useNavigate()
   const isRemoteMode = hasSupabaseConfig && Boolean(supabase)
+  const isLoginPage = location.pathname.toLowerCase() === '/login'
 
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
+  const [authError, setAuthError] = useState<string | null>(null)
+  const [authSubmitting, setAuthSubmitting] = useState(false)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [session, setSession] = useState<Session | null>(null)
+  const [profileRole, setProfileRole] = useState<ProfileRole | null>(null)
+  const [profileSubjectId, setProfileSubjectId] = useState<string | null>(null)
   const [studentSourceTable, setStudentSourceTable] = useState<StudentSourceTable>('eleves')
 
   const activeTab = useMemo(() => getTabFromPath(location.pathname), [location.pathname])
+  const visibleModules = useMemo(
+    () =>
+      profileRole === 'admin'
+        ? modules
+        : modules.filter((module) => module.key === 'grades'),
+    [profileRole],
+  )
   const [selectedPeriod, setSelectedPeriod] = useState<Period>('S1')
   const [missingPolicy, setMissingPolicy] = useState<MissingGradePolicy>('ignore')
 
@@ -262,12 +288,124 @@ function App() {
   const isLoading = loading
   const error = errorMessage
 
+  async function loadProfileForUser(userId: string): Promise<void> {
+    if (!supabase) return
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('role, matiere_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (error) throw error
+
+    if (!data) {
+      setProfileRole(null)
+      setProfileSubjectId(null)
+      setAuthError("Profil introuvable. Contacte l'administrateur.")
+      return
+    }
+
+    const role = String(data.role ?? '') as ProfileRole
+    if (role !== 'admin' && role !== 'professeur') {
+      setProfileRole(null)
+      setProfileSubjectId(null)
+      setAuthError('Rôle invalide dans le profil utilisateur.')
+      return
+    }
+
+    setProfileRole(role)
+    setProfileSubjectId((data.matiere_id as string | null) ?? null)
+  }
+
+  async function handleLogin(email: string, password: string): Promise<void> {
+    if (!supabase) return
+    setAuthSubmitting(true)
+    setAuthError(null)
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
+    } catch (error) {
+      setAuthError(`Connexion échouée: ${getErrorMessage(error)}`)
+    } finally {
+      setAuthSubmitting(false)
+    }
+  }
+
+  async function handleLogout(): Promise<void> {
+    if (!supabase) return
+    await supabase.auth.signOut()
+  }
+
   useEffect(() => {
-    const knownRoutes = new Set(Object.values(tabRoutes))
+    if (!supabase) {
+      setAuthLoading(false)
+      return
+    }
+    const authClient = supabase
+
+    let isMounted = true
+    const bootstrapAuth = async () => {
+      try {
+        const { data, error } = await authClient.auth.getSession()
+        if (error) throw error
+        if (!isMounted) return
+        const currentSession = data.session
+        setSession(currentSession)
+        if (currentSession?.user?.id) {
+          await loadProfileForUser(currentSession.user.id)
+        } else {
+          setProfileRole(null)
+          setProfileSubjectId(null)
+        }
+      } catch (error) {
+        if (!isMounted) return
+        setAuthError(`Erreur authentification: ${getErrorMessage(error)}`)
+      } finally {
+        if (isMounted) setAuthLoading(false)
+      }
+    }
+
+    void bootstrapAuth()
+
+    const { data } = authClient.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession)
+      if (nextSession?.user?.id) {
+        void loadProfileForUser(nextSession.user.id)
+      } else {
+        setProfileRole(null)
+        setProfileSubjectId(null)
+      }
+    })
+
+    return () => {
+      isMounted = false
+      data.subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (authLoading) return
+    if (!session && !isLoginPage) {
+      navigate('/login', { replace: true })
+      return
+    }
+    if (!session || !profileRole || !isLoginPage) return
+    navigate(profileRole === 'admin' ? '/dashboard' : '/notes-professeur', { replace: true })
+  }, [authLoading, isLoginPage, navigate, profileRole, session])
+
+  useEffect(() => {
+    const knownRoutes = new Set([...Object.values(tabRoutes), '/login', '/notes-professeur', '/'])
     if (!knownRoutes.has(location.pathname.toLowerCase())) {
-      navigate('/', { replace: true })
+      navigate('/dashboard', { replace: true })
     }
   }, [location.pathname, navigate])
+
+  useEffect(() => {
+    if (authLoading || !session || !profileRole) return
+    if (profileRole === 'professeur' && activeTab !== 'grades') {
+      navigate('/notes-professeur', { replace: true })
+    }
+  }, [activeTab, authLoading, navigate, profileRole, session])
 
   async function fetchStudentsFromSupabase(): Promise<{
     sourceTable: StudentSourceTable
@@ -407,6 +545,11 @@ function App() {
         setErrorMessage('Supabase non configuré. Ajoute VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.')
         return
       }
+      if (authLoading) return
+      if (!session || !profileRole) {
+        setLoading(false)
+        return
+      }
       try {
         await loadRemoteData(selectedPeriod)
       } catch (error) {
@@ -415,7 +558,7 @@ function App() {
       }
     }
     void bootstrap()
-  }, [isRemoteMode, selectedPeriod])
+  }, [authLoading, isRemoteMode, profileRole, selectedPeriod, session])
 
   useEffect(() => {
     if (classes.length > 0 && !classes.some((item) => item.id === newStudentClassId)) {
@@ -585,6 +728,21 @@ function App() {
   useEffect(() => {
     setInterrogationCountDraft(String(expectedInterrogations))
   }, [expectedInterrogations])
+
+  useEffect(() => {
+    if (profileRole === 'admin') {
+      setNotesAccessRole('admin')
+      return
+    }
+    if (profileRole === 'professeur') {
+      setNotesAccessRole('teacher')
+      if (profileSubjectId) {
+        setTeacherSubjectId(profileSubjectId)
+      } else {
+        setAuthError("Profil professeur incomplet: aucune matière assignée.")
+      }
+    }
+  }, [profileRole, profileSubjectId])
 
   useEffect(() => {
     if (subjects.length > 0 && !subjects.some((item) => item.id === teacherSubjectId)) {
@@ -1428,6 +1586,30 @@ function App() {
     setActionMessage('Bulletin exporté en PDF.')
   }
 
+  if (authLoading) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
+        <p className="rounded-xl bg-white px-4 py-3 text-sm text-slate-700 shadow ring-1 ring-slate-200">
+          Vérification de la session...
+        </p>
+      </main>
+    )
+  }
+
+  if (isLoginPage) {
+    return <Login isSubmitting={authSubmitting} errorMessage={authError} onLogin={handleLogin} />
+  }
+
+  if (!session || !profileRole) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
+        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700 shadow ring-1 ring-amber-200">
+          Session non active. Redirection vers la connexion...
+        </p>
+      </main>
+    )
+  }
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <header className="mb-8 rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 p-7 text-white shadow-2xl ring-1 ring-white/10">
@@ -1435,7 +1617,19 @@ function App() {
           <p className="inline-flex rounded-full bg-white/15 px-3 py-1 text-xs uppercase tracking-wider text-slate-100">
             {schoolName}
           </p>
-          <BeninFlagBadge />
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-white/15 px-3 py-1 text-xs text-slate-100 ring-1 ring-white/20">
+              {profileRole === 'admin' ? 'Administrateur' : 'Professeur'}
+            </span>
+            <button
+              type="button"
+              className="rounded-full bg-white/15 px-3 py-1 text-xs text-slate-100 ring-1 ring-white/20 hover:bg-white/25"
+              onClick={() => void handleLogout()}
+            >
+              Déconnexion
+            </button>
+            <BeninFlagBadge />
+          </div>
         </div>
         <h1 className="mt-2 text-3xl font-bold sm:text-4xl">Gestion des moyennes scolaires - {schoolName}</h1>
       </header>
@@ -1451,7 +1645,7 @@ function App() {
         <aside className="rounded-2xl bg-white/95 p-4 shadow-lg ring-1 ring-slate-200 backdrop-blur lg:sticky lg:top-6 lg:h-fit">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Menu latéral</h2>
           <nav className="space-y-2">
-            {modules.map((module) => (
+            {visibleModules.map((module) => (
               <button
                 key={module.key}
                 type="button"
@@ -1460,7 +1654,13 @@ function App() {
                     ? 'bg-indigo-600 text-white shadow-md'
                     : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
-                onClick={() => navigate(tabRoutes[module.key])}
+                onClick={() => {
+                  const route =
+                    profileRole === 'professeur' && module.key === 'grades'
+                      ? '/notes-professeur'
+                      : tabRoutes[module.key]
+                  navigate(route)
+                }}
               >
                 <span>{module.name}</span>
                 <span aria-hidden="true">›</span>
@@ -1806,33 +2006,15 @@ function App() {
             </div>
 
             <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <div className="grid gap-3 md:grid-cols-3">
-                <label className="space-y-1">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Profil Notes</span>
-                  <select
-                    className={formControlClass}
-                    value={notesAccessRole}
-                    onChange={(event) => setNotesAccessRole(event.target.value as NotesAccessRole)}
-                  >
-                    <option value="admin">Administrateur (toutes les matières)</option>
-                    <option value="teacher">Professeur (une seule matière)</option>
-                  </select>
-                </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">
+                  Profil: {notesAccessRole === 'admin' ? 'Administrateur' : 'Professeur'}
+                </span>
                 {notesAccessRole === 'teacher' ? (
-                  <label className="space-y-1">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Matière du professeur</span>
-                    <select
-                      className={formControlClass}
-                      value={teacherSubjectId}
-                      onChange={(event) => setTeacherSubjectId(event.target.value)}
-                    >
-                      {subjects.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <span className="rounded-lg bg-indigo-100 px-3 py-1.5 text-xs font-semibold text-indigo-800">
+                    Matière assignée:{' '}
+                    {subjects.find((subject) => subject.id === teacherSubjectId)?.name ?? 'Non configurée'}
+                  </span>
                 ) : null}
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
