@@ -736,6 +736,15 @@ function App() {
     if (recapSem1 !== null && recapSem2 !== null) return roundToTwo((recapSem1 + recapSem2) / 2)
     return null
   }, [dashboardStudentAverages, recapSem1, recapSem2, reportStudent])
+  const gradeSummaryBySubject = useMemo(() => {
+    if (!newGradeStudentId) return []
+    return buildSemesterReportLines(newGradeStudentId, newGradePeriod)
+  }, [buildSemesterReportLines, newGradePeriod, newGradeStudentId])
+
+  const selectedStudentLabel = useMemo(
+    () => studentLabel(newGradeStudentId),
+    [newGradeStudentId, students],
+  )
   const massStudents = useMemo(
     () => students.filter((student) => student.classId === massClassId),
     [students, massClassId],
@@ -1874,6 +1883,51 @@ function App() {
                         )}
                       </div>
                     </section>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-200 bg-white">
+                  <div className="border-b border-slate-200 px-4 py-3">
+                    <h4 className="text-sm font-semibold text-slate-800">
+                      Notes structurées par matière — {selectedStudentLabel} ({getPeriodLabel(newGradePeriod)})
+                    </h4>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200 text-sm">
+                      <thead className="bg-slate-50 text-left">
+                        <tr>
+                          <th className="px-3 py-2">Matière</th>
+                          <th className="px-3 py-2 text-center">Moy. interros</th>
+                          <th className="px-3 py-2 text-center">Devoir 1</th>
+                          <th className="px-3 py-2 text-center">Devoir 2</th>
+                          <th className="px-3 py-2 text-center">Moy. matière</th>
+                          <th className="px-3 py-2 text-center">Total coeff</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {gradeSummaryBySubject.map((line) => (
+                          <tr key={`summary-${line.subject}`}>
+                            <td className="px-3 py-2 font-medium text-slate-800">{line.subject}</td>
+                            <td className="px-3 py-2 text-center">{line.interroAverage === null ? '-' : line.interroAverage.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-center">{line.devoir1 === null ? '-' : line.devoir1.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-center">{line.devoir2 === null ? '-' : line.devoir2.toFixed(2)}</td>
+                            <td className="px-3 py-2 text-center font-semibold">
+                              {line.subjectAverage === null ? '-' : line.subjectAverage.toFixed(2)}
+                            </td>
+                            <td className="px-3 py-2 text-center font-semibold">
+                              {line.total === null ? '-' : line.total.toFixed(2)}
+                            </td>
+                          </tr>
+                        ))}
+                        {gradeSummaryBySubject.length === 0 ? (
+                          <tr>
+                            <td className="px-3 py-3 text-slate-500" colSpan={6}>
+                              Aucune note disponible pour cette sélection.
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
