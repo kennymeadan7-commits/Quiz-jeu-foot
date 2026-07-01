@@ -339,10 +339,23 @@ function App() {
     setAuthError(null)
     setAuthInfo(null)
     try {
-      const { error } = await supabase.auth.signUp({ email, password })
+      const { data, error } = await supabase.auth.signUp({ email, password })
       if (error) throw error
+
+      // Connexion immédiate si la confirmation email est désactivée.
+      if (data.session) {
+        setAuthInfo('Compte créé et connecté. L’administrateur assignera ta matière.')
+        return
+      }
+
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+      if (!signInError) {
+        setAuthInfo('Compte créé et connecté. L’administrateur assignera ta matière.')
+        return
+      }
+
       setAuthInfo(
-        "Compte créé. Vérifie ta boîte mail pour confirmer l'inscription, puis connecte-toi. L'administrateur assignera ta matière.",
+        "Compte créé. Active la connexion immédiate dans Supabase (Authentication > Providers > Email > désactiver l'option de confirmation email).",
       )
     } catch (error) {
       setAuthError(`Création du compte échouée: ${getErrorMessage(error)}`)
