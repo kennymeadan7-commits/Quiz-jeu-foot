@@ -354,9 +354,7 @@ function App() {
         return
       }
 
-      setAuthInfo(
-        "Compte créé. Active la connexion immédiate dans Supabase (Authentication > Providers > Email > désactiver l'option de confirmation email).",
-      )
+      setAuthInfo('Compte créé. Connecte-toi avec tes identifiants.')
     } catch (error) {
       setAuthError(`Création du compte échouée: ${getErrorMessage(error)}`)
     } finally {
