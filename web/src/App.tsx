@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { hasSupabaseConfig, supabase } from './lib/supabase/client'
 import { type MissingGradePolicy } from './domain/services/average-calculator'
@@ -215,6 +215,13 @@ function App() {
   const [newGradeAssessmentType, setNewGradeAssessmentType] = useState<AssessmentType>('Interrogation')
   const [newGradeValue, setNewGradeValue] = useState('10')
   const [newGradeMissing, setNewGradeMissing] = useState(false)
+  const [massEntryMode, setMassEntryMode] = useState(false)
+  const [massClassId, setMassClassId] = useState('cls-1')
+  const [massSubjectId, setMassSubjectId] = useState('sub-1')
+  const [massPeriod, setMassPeriod] = useState<Period>('S1')
+  const [massAssessmentType, setMassAssessmentType] = useState<AssessmentType>('Interrogation')
+  const [massGrades, setMassGrades] = useState<Record<string, string>>({})
+  const massInputRefs = useRef<Array<HTMLInputElement | null>>([])
 
   const [reportStudentId, setReportStudentId] = useState('std-1')
   const [reportPeriod, setReportPeriod] = useState<Period>('S1')
@@ -662,6 +669,39 @@ function App() {
     if (recapSem1 !== null && recapSem2 !== null) return roundToTwo((recapSem1 + recapSem2) / 2)
     return null
   }, [dashboardStudentAverages, recapSem1, recapSem2, reportStudent])
+  const massStudents = useMemo(
+    () => students.filter((student) => student.classId === massClassId),
+    [students, massClassId],
+  )
+
+  useEffect(() => {
+    if (classes.length > 0 && !classes.some((item) => item.id === massClassId)) {
+      setMassClassId(classes[0].id)
+    }
+  }, [classes, massClassId])
+
+  useEffect(() => {
+    if (subjects.length > 0 && !subjects.some((item) => item.id === massSubjectId)) {
+      setMassSubjectId(subjects[0].id)
+    }
+  }, [subjects, massSubjectId])
+
+  useEffect(() => {
+    if (!massClassId || !massSubjectId) return
+    const nextGrades: Record<string, string> = {}
+    massStudents.forEach((student) => {
+      const existing = grades.find(
+        (row) =>
+          row.studentId === student.id &&
+          row.subjectId === massSubjectId &&
+          row.period === massPeriod &&
+          row.assessmentType === massAssessmentType,
+      )
+      nextGrades[student.id] = existing?.grade === null || existing?.grade === undefined ? '' : String(existing.grade)
+    })
+    massInputRefs.current = []
+    setMassGrades(nextGrades)
+  }, [grades, massAssessmentType, massClassId, massPeriod, massStudents, massSubjectId])
 
   async function addClass(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -915,6 +955,87 @@ function App() {
       setActionMessage('Matière supprimée.')
     } catch (error) {
       setActionMessage(`Erreur suppression matière: ${getErrorMessage(error)}`)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  function handleMassCellNavigation(event: KeyboardEvent<HTMLInputElement>, rowIndex: number): void {
+    if (event.key !== 'Enter' && event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    event.preventDefault()
+    const direction = event.key === 'ArrowUp' ? -1 : 1
+    const nextIndex = rowIndex + direction
+    if (nextIndex < 0 || nextIndex >= massStudents.length) return
+    massInputRefs.current[nextIndex]?.focus()
+    massInputRefs.current[nextIndex]?.select()
+  }
+
+  async function saveMassEntry(): Promise<void> {
+    if (!supabase || !massClassId || !massSubjectId) return
+    const client = supabase
+    if (massStudents.length === 0) {
+      setActionMessage('Aucun élève dans cette classe.')
+      return
+    }
+
+    const updates: Array<{ id: string; grade: number | null }> = []
+    const inserts: Array<{
+      student_id: string
+      subject_id: string
+      period: Period
+      assessment_label: AssessmentType
+      grade: number | null
+    }> = []
+
+    for (const student of massStudents) {
+      const raw = (massGrades[student.id] ?? '').trim()
+      const parsed = raw === '' ? null : Number(raw)
+      if (parsed !== null && (Number.isNaN(parsed) || parsed < 0 || parsed > 20)) {
+        setActionMessage(`Note invalide pour ${student.firstName} ${student.lastName}. Utilise une valeur entre 0 et 20.`)
+        return
+      }
+
+      const existing = grades.find(
+        (row) =>
+          row.studentId === student.id &&
+          row.subjectId === massSubjectId &&
+          row.period === massPeriod &&
+          row.assessmentType === massAssessmentType,
+      )
+
+      if (existing) {
+        updates.push({ id: existing.id, grade: parsed })
+      } else {
+        inserts.push({
+          student_id: student.id,
+          subject_id: massSubjectId,
+          period: massPeriod,
+          assessment_label: massAssessmentType,
+          grade: parsed,
+        })
+      }
+    }
+
+    setSubmitting(true)
+    try {
+      if (updates.length > 0) {
+        await Promise.all(
+          updates.map(async (item) => {
+            const { error } = await client.from('grades').update({ grade: item.grade }).eq('id', item.id)
+            if (error) throw error
+          }),
+        )
+      }
+
+      if (inserts.length > 0) {
+        const { error } = await client.from('grades').insert(inserts)
+        if (error) throw error
+      }
+
+      await loadRemoteData(selectedPeriod)
+      setActionMessage(`Saisie de masse enregistrée (${massStudents.length} élèves).`)
+    } catch (error) {
+      setActionMessage(`Erreur saisie de masse: ${getErrorMessage(error)}`)
     } finally {
       setSubmitting(false)
     }
@@ -1407,11 +1528,26 @@ function App() {
 
         {activeTab === 'grades' && (
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold text-slate-900">CRUD Notes</h2>
-            <form
-              className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 md:grid-cols-2 xl:grid-cols-4"
-              onSubmit={(event) => void addGrade(event)}
-            >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold text-slate-900">Notes</h2>
+              <button
+                type="button"
+                className={`rounded-xl px-4 py-2 text-sm font-semibold ${
+                  massEntryMode ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                }`}
+                onClick={() => setMassEntryMode((prev) => !prev)}
+              >
+                {massEntryMode ? 'Mass Entry Mode: Activé' : 'Activer Mass Entry Mode'}
+              </button>
+            </div>
+
+            {!massEntryMode && (
+              <>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Saisie individuelle</h3>
+                <form
+                  className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 md:grid-cols-2 xl:grid-cols-4"
+                  onSubmit={(event) => void addGrade(event)}
+                >
               <label className="space-y-1">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Élève</span>
                 <select
@@ -1496,145 +1632,255 @@ function App() {
                   {submitting ? 'Traitement...' : 'Ajouter note'}
                 </button>
               </div>
-            </form>
+                </form>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-200">
-              <table className="min-w-full divide-y divide-slate-200 text-sm">
-                <thead className="bg-slate-50 text-left">
-                  <tr>
-                    <th className="px-3 py-2">Élève</th>
-                    <th className="px-3 py-2">Matière</th>
-                    <th className="px-3 py-2">Semestre</th>
-                    <th className="px-3 py-2">Type</th>
-                    <th className="px-3 py-2">Note</th>
-                    <th className="px-3 py-2">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {grades.map((row) => {
-                    const edit = editingGrade[row.id] ?? {
-                      studentId: row.studentId,
-                      subjectId: row.subjectId,
-                      period: row.period,
-                      assessmentType: row.assessmentType,
-                      grade: row.grade?.toString() ?? '',
-                      missing: row.grade === null,
-                    }
+                <div className="overflow-x-auto rounded-xl border border-slate-200">
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-50 text-left">
+                      <tr>
+                        <th className="px-3 py-2">Élève</th>
+                        <th className="px-3 py-2">Matière</th>
+                        <th className="px-3 py-2">Semestre</th>
+                        <th className="px-3 py-2">Type</th>
+                        <th className="px-3 py-2">Note</th>
+                        <th className="px-3 py-2">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white">
+                      {grades.map((row) => {
+                        const edit = editingGrade[row.id] ?? {
+                          studentId: row.studentId,
+                          subjectId: row.subjectId,
+                          period: row.period,
+                          assessmentType: row.assessmentType,
+                          grade: row.grade?.toString() ?? '',
+                          missing: row.grade === null,
+                        }
 
-                    return (
-                      <tr key={row.id}>
-                        <td className="px-3 py-2">
-                          <select
-                            className="w-full rounded border border-slate-300 px-2 py-1"
-                            value={edit.studentId}
-                            onChange={(event) =>
-                              setEditingGrade((prev) => ({ ...prev, [row.id]: { ...edit, studentId: event.target.value } }))
-                            }
-                          >
-                            {students.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.firstName} {item.lastName}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            className="w-full rounded border border-slate-300 px-2 py-1"
-                            value={edit.subjectId}
-                            onChange={(event) =>
-                              setEditingGrade((prev) => ({ ...prev, [row.id]: { ...edit, subjectId: event.target.value } }))
-                            }
-                          >
-                            {subjects.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            className="w-full rounded border border-slate-300 px-2 py-1"
-                            value={edit.period}
-                            onChange={(event) =>
-                              setEditingGrade((prev) => ({ ...prev, [row.id]: { ...edit, period: event.target.value } }))
-                            }
-                          >
-                            {periodOptions.map((period) => (
-                              <option key={period.value} value={period.value}>
-                                {period.label}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <select
-                            className="w-full rounded border border-slate-300 px-2 py-1"
-                            value={edit.assessmentType}
-                            onChange={(event) =>
-                              setEditingGrade((prev) => ({
-                                ...prev,
-                                [row.id]: {
-                                  ...edit,
-                                  assessmentType: event.target.value as AssessmentType,
-                                },
-                              }))
-                            }
-                          >
-                            {assessmentTypeOptions.map((item) => (
-                              <option key={item} value={item}>
-                                {item}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <input
-                              className="w-full rounded border border-slate-300 px-2 py-1"
-                              type="number"
-                              min="0"
-                              max="20"
-                              step="0.25"
-                              value={edit.grade}
-                              disabled={edit.missing}
-                              onChange={(event) =>
-                                setEditingGrade((prev) => ({ ...prev, [row.id]: { ...edit, grade: event.target.value } }))
-                              }
-                            />
-                            <label className="text-xs">
-                              <input
-                                className="mr-1"
-                                type="checkbox"
-                                checked={edit.missing}
+                        return (
+                          <tr key={row.id}>
+                            <td className="px-3 py-2">
+                              <select
+                                className="w-full rounded border border-slate-300 px-2 py-1"
+                                value={edit.studentId}
+                                onChange={(event) =>
+                                  setEditingGrade((prev) => ({ ...prev, [row.id]: { ...edit, studentId: event.target.value } }))
+                                }
+                              >
+                                {students.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.firstName} {item.lastName}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-3 py-2">
+                              <select
+                                className="w-full rounded border border-slate-300 px-2 py-1"
+                                value={edit.subjectId}
+                                onChange={(event) =>
+                                  setEditingGrade((prev) => ({ ...prev, [row.id]: { ...edit, subjectId: event.target.value } }))
+                                }
+                              >
+                                {subjects.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-3 py-2">
+                              <select
+                                className="w-full rounded border border-slate-300 px-2 py-1"
+                                value={edit.period}
+                                onChange={(event) =>
+                                  setEditingGrade((prev) => ({ ...prev, [row.id]: { ...edit, period: event.target.value } }))
+                                }
+                              >
+                                {periodOptions.map((period) => (
+                                  <option key={period.value} value={period.value}>
+                                    {period.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-3 py-2">
+                              <select
+                                className="w-full rounded border border-slate-300 px-2 py-1"
+                                value={edit.assessmentType}
                                 onChange={(event) =>
                                   setEditingGrade((prev) => ({
                                     ...prev,
-                                    [row.id]: { ...edit, missing: event.target.checked },
+                                    [row.id]: {
+                                      ...edit,
+                                      assessmentType: event.target.value as AssessmentType,
+                                    },
                                   }))
                                 }
-                              />
-                              Abs
-                            </label>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
-                            <button type="button" className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500" onClick={() => void updateGrade(row.id)}>
-                            Enregistrer
-                            </button>
-                            <button type="button" className="rounded-md bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-500" onClick={() => void deleteGrade(row.id)}>
-                            Supprimer
-                            </button>
-                          </div>
-                        </td>
+                              >
+                                {assessmentTypeOptions.map((item) => (
+                                  <option key={item} value={item}>
+                                    {item}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  className="w-full rounded border border-slate-300 px-2 py-1"
+                                  type="number"
+                                  min="0"
+                                  max="20"
+                                  step="0.25"
+                                  value={edit.grade}
+                                  disabled={edit.missing}
+                                  onChange={(event) =>
+                                    setEditingGrade((prev) => ({ ...prev, [row.id]: { ...edit, grade: event.target.value } }))
+                                  }
+                                />
+                                <label className="text-xs">
+                                  <input
+                                    className="mr-1"
+                                    type="checkbox"
+                                    checked={edit.missing}
+                                    onChange={(event) =>
+                                      setEditingGrade((prev) => ({
+                                        ...prev,
+                                        [row.id]: { ...edit, missing: event.target.checked },
+                                      }))
+                                    }
+                                  />
+                                  Abs
+                                </label>
+                              </div>
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
+                                <button type="button" className="rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500" onClick={() => void updateGrade(row.id)}>
+                                  Enregistrer
+                                </button>
+                                <button type="button" className="rounded-md bg-rose-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-rose-500" onClick={() => void deleteGrade(row.id)}>
+                                  Supprimer
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {massEntryMode && (
+              <div className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
+                <p className="text-sm font-medium text-indigo-900">
+                  Mode saisie de masse (clavier): Entrée/Flèche bas = ligne suivante, Flèche haut = ligne précédente.
+                </p>
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                  <label className="space-y-1">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Classe</span>
+                    <select className={formControlClass} value={massClassId} onChange={(event) => setMassClassId(event.target.value)}>
+                      {classes.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Matière</span>
+                    <select className={formControlClass} value={massSubjectId} onChange={(event) => setMassSubjectId(event.target.value)}>
+                      {subjects.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Semestre</span>
+                    <select className={formControlClass} value={massPeriod} onChange={(event) => setMassPeriod(event.target.value as Period)}>
+                      {periodOptions.map((period) => (
+                        <option key={period.value} value={period.value}>
+                          {period.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Type</span>
+                    <select
+                      className={formControlClass}
+                      value={massAssessmentType}
+                      onChange={(event) => setMassAssessmentType(event.target.value as AssessmentType)}
+                    >
+                      {assessmentTypeOptions.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                <div
+                  className="overflow-x-auto rounded-xl border border-slate-300 bg-white"
+                  onKeyDown={(event) => {
+                    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+                      event.preventDefault()
+                      void saveMassEntry()
+                    }
+                  }}
+                >
+                  <table className="min-w-full divide-y divide-slate-200 text-sm">
+                    <thead className="bg-slate-100 text-left">
+                      <tr>
+                        <th className="px-3 py-2">#</th>
+                        <th className="px-3 py-2">Élève</th>
+                        <th className="px-3 py-2">Note /20</th>
                       </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {massStudents.map((student, index) => (
+                        <tr key={student.id} className="odd:bg-white even:bg-slate-50/70">
+                          <td className="px-3 py-2 text-slate-500">{index + 1}</td>
+                          <td className="px-3 py-2 font-medium text-slate-800">
+                            {student.firstName} {student.lastName}
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              ref={(element) => {
+                                massInputRefs.current[index] = element
+                              }}
+                              className={`${formControlClass} max-w-[140px]`}
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="vide = abs"
+                              value={massGrades[student.id] ?? ''}
+                              onChange={(event) =>
+                                setMassGrades((prev) => ({ ...prev, [student.id]: event.target.value }))
+                              }
+                              onFocus={(event) => event.currentTarget.select()}
+                              onKeyDown={(event) => handleMassCellNavigation(event, index)}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" className={primaryButtonClass} onClick={() => void saveMassEntry()} disabled={submitting}>
+                    {submitting ? 'Enregistrement...' : 'Enregistrer toute la grille'}
+                  </button>
+                  <span className="text-xs text-slate-500">Astuce: Ctrl+S pour sauvegarder rapidement.</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
