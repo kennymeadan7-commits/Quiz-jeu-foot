@@ -1162,6 +1162,16 @@ function App() {
       missingPolicy,
       signerFullName: reportSignerFullName.trim(),
       lines,
+      classSize: reportClassStudents.length,
+      classAverage: classAverageForPeriod,
+      classBestAverage,
+      classLowestAverage: classWeakAverage,
+      classAboveAverageCount,
+      absences: reportAbsences,
+      retards: 0,
+      recapSem1,
+      recapSem2,
+      recapAnnual: recapAnnuel,
     })
     setActionMessage('Bulletin exporté en PDF.')
   }
