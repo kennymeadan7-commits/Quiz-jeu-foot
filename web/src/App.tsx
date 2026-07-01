@@ -13,6 +13,7 @@ import {
 type Tab = 'dashboard' | 'classes' | 'students' | 'subjects' | 'grades' | 'reports'
 type Period = 'S1' | 'S2' | 'Annuel'
 type AssessmentType = 'Interrogation' | 'Devoir'
+type NotesAccessRole = 'admin' | 'teacher'
 
 type ClassItem = { id: string; name: string; level: string }
 type StudentItem = { id: string; firstName: string; lastName: string; classId: string }
@@ -37,6 +38,7 @@ type StudentRankingRow = {
 }
 type StudentSourceTable = 'eleves' | 'students'
 type SemesterReportLine = {
+  subjectId: string
   subject: string
   coefficient: number
   interroAverage: number | null
@@ -213,6 +215,9 @@ function App() {
   const [newGradeStudentId, setNewGradeStudentId] = useState('std-1')
   const [newGradeSubjectId, setNewGradeSubjectId] = useState('sub-1')
   const [newGradePeriod, setNewGradePeriod] = useState<Period>('S1')
+  const [notesAccessRole, setNotesAccessRole] = useState<NotesAccessRole>('admin')
+  const [teacherSubjectId, setTeacherSubjectId] = useState('sub-1')
+  const [notesSectionSubjectId, setNotesSectionSubjectId] = useState<string>('all')
   const [interrogationsPerSubject, setInterrogationsPerSubject] = useState<Record<string, number>>({})
   const [interrogationCountDraft, setInterrogationCountDraft] = useState('2')
   const [interroPlanValidated, setInterroPlanValidated] = useState(false)
@@ -532,16 +537,32 @@ function App() {
 
   const headlineAverage = dashboardClassAverages.length > 0 ? `${dashboardClassAverages[0].class_average.toFixed(2)} / 20` : '-- / 20'
   const missingNotesCount = grades.filter((grade) => grade.grade === null).length
+  const allowedSubjectIds = useMemo(
+    () =>
+      notesAccessRole === 'admin'
+        ? new Set(subjects.map((subject) => subject.id))
+        : new Set([teacherSubjectId]),
+    [notesAccessRole, subjects, teacherSubjectId],
+  )
+  const visibleSubjects = useMemo(
+    () => subjects.filter((subject) => allowedSubjectIds.has(subject.id)),
+    [allowedSubjectIds, subjects],
+  )
+  const visibleGrades = useMemo(
+    () => grades.filter((grade) => allowedSubjectIds.has(grade.subjectId)),
+    [allowedSubjectIds, grades],
+  )
+
   const currentInterrogationCount = useMemo(
     () =>
-      grades.filter(
+      visibleGrades.filter(
         (grade) =>
           grade.studentId === newGradeStudentId &&
           grade.subjectId === newGradeSubjectId &&
           grade.period === newGradePeriod &&
           grade.assessmentType === 'Interrogation',
       ).length,
-    [grades, newGradePeriod, newGradeStudentId, newGradeSubjectId],
+    [newGradePeriod, newGradeStudentId, newGradeSubjectId, visibleGrades],
   )
   const expectedInterrogations = useMemo(
     () => Math.max(1, interrogationsPerSubject[newGradeSubjectId] ?? 2),
@@ -550,20 +571,55 @@ function App() {
   const nextInterrogationIndex = Math.min(currentInterrogationCount + 1, expectedInterrogations)
   const currentDevoirCount = useMemo(
     () =>
-      grades.filter(
+      visibleGrades.filter(
         (grade) =>
           grade.studentId === newGradeStudentId &&
           grade.subjectId === newGradeSubjectId &&
           grade.period === newGradePeriod &&
           grade.assessmentType === 'Devoir',
       ).length,
-    [grades, newGradePeriod, newGradeStudentId, newGradeSubjectId],
+    [newGradePeriod, newGradeStudentId, newGradeSubjectId, visibleGrades],
   )
   const nextDevoirIndex = Math.min(currentDevoirCount + 1, 2)
 
   useEffect(() => {
     setInterrogationCountDraft(String(expectedInterrogations))
   }, [expectedInterrogations])
+
+  useEffect(() => {
+    if (subjects.length > 0 && !subjects.some((item) => item.id === teacherSubjectId)) {
+      setTeacherSubjectId(subjects[0].id)
+    }
+  }, [subjects, teacherSubjectId])
+
+  useEffect(() => {
+    if (notesAccessRole !== 'teacher') return
+    if (!teacherSubjectId) return
+    setNewGradeSubjectId(teacherSubjectId)
+    setMassSubjectId(teacherSubjectId)
+    setNotesSectionSubjectId(teacherSubjectId)
+  }, [notesAccessRole, teacherSubjectId])
+
+  useEffect(() => {
+    if (visibleSubjects.length === 0) return
+    if (!visibleSubjects.some((item) => item.id === newGradeSubjectId)) {
+      setNewGradeSubjectId(visibleSubjects[0].id)
+    }
+    if (!visibleSubjects.some((item) => item.id === massSubjectId)) {
+      setMassSubjectId(visibleSubjects[0].id)
+    }
+  }, [massSubjectId, newGradeSubjectId, visibleSubjects])
+
+  useEffect(() => {
+    if (notesAccessRole === 'teacher') {
+      setNotesSectionSubjectId(teacherSubjectId)
+      return
+    }
+    if (notesSectionSubjectId === 'all') return
+    if (!visibleSubjects.some((item) => item.id === notesSectionSubjectId)) {
+      setNotesSectionSubjectId('all')
+    }
+  }, [notesAccessRole, notesSectionSubjectId, teacherSubjectId, visibleSubjects])
 
   function buildSemesterReportLines(studentId: string, period: Period): SemesterReportLine[] {
     const lines = subjects.map((subject) => {
@@ -614,6 +670,7 @@ function App() {
       const total = subjectAverage === null ? null : roundToTwo(subjectAverage * subject.coefficient)
 
       return {
+        subjectId: subject.id,
         subject: subject.name,
         coefficient: subject.coefficient,
         interroAverage,
@@ -738,8 +795,17 @@ function App() {
   }, [dashboardStudentAverages, recapSem1, recapSem2, reportStudent])
   const gradeSummaryBySubject = useMemo(() => {
     if (!newGradeStudentId) return []
-    return buildSemesterReportLines(newGradeStudentId, newGradePeriod)
-  }, [buildSemesterReportLines, newGradePeriod, newGradeStudentId])
+    const lines = buildSemesterReportLines(newGradeStudentId, newGradePeriod).filter((line) =>
+      allowedSubjectIds.has(line.subjectId),
+    )
+    if (notesSectionSubjectId === 'all') return lines
+    return lines.filter((line) => line.subjectId === notesSectionSubjectId)
+  }, [allowedSubjectIds, buildSemesterReportLines, newGradePeriod, newGradeStudentId, notesSectionSubjectId])
+
+  const displayedGrades = useMemo(() => {
+    if (notesSectionSubjectId === 'all') return visibleGrades
+    return visibleGrades.filter((row) => row.subjectId === notesSectionSubjectId)
+  }, [notesSectionSubjectId, visibleGrades])
 
   const selectedStudentLabel = useMemo(
     () => studentLabel(newGradeStudentId),
@@ -1088,6 +1154,10 @@ function App() {
   async function saveMassEntry(): Promise<void> {
     if (!supabase || !massClassId || !massSubjectId) return
     const client = supabase
+    if (!allowedSubjectIds.has(massSubjectId)) {
+      setActionMessage("Accès refusé: vous ne pouvez saisir que les notes de votre matière.")
+      return
+    }
     if (massStudents.length === 0) {
       setActionMessage('Aucun élève dans cette classe.')
       return
@@ -1174,6 +1244,10 @@ function App() {
     isMissing: boolean,
   ): Promise<void> {
     if (!newGradeStudentId || !newGradeSubjectId || !supabase) return
+    if (!allowedSubjectIds.has(newGradeSubjectId)) {
+      setActionMessage("Accès refusé: vous ne pouvez saisir que les notes de votre matière.")
+      return
+    }
     const numericValue = Number(gradeValue)
     const isValid = isMissing || (!Number.isNaN(numericValue) && numericValue >= 0 && numericValue <= 20)
     if (!isValid) {
@@ -1244,6 +1318,10 @@ function App() {
   async function updateGrade(gradeId: string) {
     const row = editingGrade[gradeId]
     if (!row || !supabase) return
+    if (!allowedSubjectIds.has(row.subjectId)) {
+      setActionMessage("Accès refusé: modification hors matière non autorisée.")
+      return
+    }
     const numericValue = Number(row.grade)
     const isValid = row.missing || (!Number.isNaN(numericValue) && numericValue >= 0 && numericValue <= 20)
     if (!isValid) {
@@ -1279,6 +1357,11 @@ function App() {
 
   async function deleteGrade(gradeId: string) {
     if (!supabase) return
+    const row = grades.find((item) => item.id === gradeId)
+    if (row && !allowedSubjectIds.has(row.subjectId)) {
+      setActionMessage("Accès refusé: suppression hors matière non autorisée.")
+      return
+    }
     setSubmitting(true)
     try {
       const { error } = await supabase.from('grades').delete().eq('id', gradeId)
@@ -1709,16 +1792,75 @@ function App() {
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-semibold text-slate-900">Notes</h2>
-              <button
-                type="button"
-                className={`rounded-xl px-4 py-2 text-sm font-semibold ${
-                  massEntryMode ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
-                }`}
-                onClick={() => setMassEntryMode((prev) => !prev)}
-              >
-                {massEntryMode ? 'Mass Entry Mode: Activé' : 'Activer Mass Entry Mode'}
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className={`rounded-xl px-4 py-2 text-sm font-semibold ${
+                    massEntryMode ? 'bg-indigo-600 text-white hover:bg-indigo-500' : 'bg-slate-200 text-slate-800 hover:bg-slate-300'
+                  }`}
+                  onClick={() => setMassEntryMode((prev) => !prev)}
+                >
+                  {massEntryMode ? 'Mass Entry Mode: Activé' : 'Activer Mass Entry Mode'}
+                </button>
+              </div>
             </div>
+
+            <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="space-y-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Profil Notes</span>
+                  <select
+                    className={formControlClass}
+                    value={notesAccessRole}
+                    onChange={(event) => setNotesAccessRole(event.target.value as NotesAccessRole)}
+                  >
+                    <option value="admin">Administrateur (toutes les matières)</option>
+                    <option value="teacher">Professeur (une seule matière)</option>
+                  </select>
+                </label>
+                {notesAccessRole === 'teacher' ? (
+                  <label className="space-y-1">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Matière du professeur</span>
+                    <select
+                      className={formControlClass}
+                      value={teacherSubjectId}
+                      onChange={(event) => setTeacherSubjectId(event.target.value)}
+                    >
+                      {subjects.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                {notesAccessRole === 'admin' ? (
+                  <button
+                    type="button"
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                      notesSectionSubjectId === 'all' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'
+                    }`}
+                    onClick={() => setNotesSectionSubjectId('all')}
+                  >
+                    Toutes les matières
+                  </button>
+                ) : null}
+                {visibleSubjects.map((subject) => (
+                  <button
+                    key={`section-${subject.id}`}
+                    type="button"
+                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                      notesSectionSubjectId === subject.id ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300'
+                    }`}
+                    onClick={() => setNotesSectionSubjectId(subject.id)}
+                  >
+                    {subject.name}
+                  </button>
+                ))}
+              </div>
+            </section>
 
             {!massEntryMode && (
               <>
@@ -1746,7 +1888,7 @@ function App() {
                         value={newGradeSubjectId}
                         onChange={(event) => setNewGradeSubjectId(event.target.value)}
                       >
-                        {subjects.map((item) => (
+                        {visibleSubjects.map((item) => (
                           <option key={item.id} value={item.id}>
                             {item.name}
                           </option>
@@ -1944,7 +2086,7 @@ function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 bg-white">
-                      {grades.map((row) => {
+                      {displayedGrades.map((row) => {
                         const edit = editingGrade[row.id] ?? {
                           studentId: row.studentId,
                           subjectId: row.subjectId,
@@ -1979,7 +2121,7 @@ function App() {
                                   setEditingGrade((prev) => ({ ...prev, [row.id]: { ...edit, subjectId: event.target.value } }))
                                 }
                               >
-                                {subjects.map((item) => (
+                                {visibleSubjects.map((item) => (
                                   <option key={item.id} value={item.id}>
                                     {item.name}
                                   </option>
@@ -2090,7 +2232,7 @@ function App() {
                   <label className="space-y-1">
                     <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Matière</span>
                     <select className={formControlClass} value={massSubjectId} onChange={(event) => setMassSubjectId(event.target.value)}>
-                      {subjects.map((item) => (
+                      {visibleSubjects.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.name}
                         </option>
