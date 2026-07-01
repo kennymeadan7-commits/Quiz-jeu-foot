@@ -64,9 +64,9 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
-      <section className="grid w-full max-w-4xl overflow-hidden rounded-3xl bg-white shadow-xl shadow-slate-300/35 ring-1 ring-slate-200 md:grid-cols-2">
-        <div className="bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 p-8 text-white">
-          <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs ring-1 ring-white/20">
+      <section className="grid w-full max-w-4xl overflow-hidden rounded-xl border border-slate-300 bg-white shadow-lg shadow-slate-300/30 md:grid-cols-2">
+        <div className="bg-gradient-to-b from-slate-900 to-slate-800 p-8 text-white">
+          <div className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-1.5 text-xs ring-1 ring-white/20">
             <span className="relative block h-4 w-6 overflow-hidden rounded-sm ring-1 ring-black/20">
               <span className="absolute inset-y-0 left-0 w-2/5 bg-[#008751]" />
               <span className="absolute inset-y-0 right-0 w-3/5">
@@ -76,8 +76,8 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
             </span>
             République du Bénin
           </div>
-          <h1 className="mt-6 text-3xl font-bold leading-tight">CEG 5 DOGBO</h1>
-          <p className="mt-3 text-base text-slate-100">
+          <h1 className="mt-6 text-3xl font-bold leading-tight tracking-wide">CEG 5 DOGBO</h1>
+          <p className="mt-3 text-base leading-relaxed text-slate-100">
             Plateforme de gestion scolaire sécurisée pour les administrateurs et les professeurs.
           </p>
           <ul className="mt-6 space-y-2 text-sm text-slate-200">
@@ -88,17 +88,17 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
         </div>
 
         <div className="p-8">
-          <h2 className="text-2xl font-semibold text-slate-900">Connexion à votre espace</h2>
-          <p className="mt-2 text-sm text-slate-600">
+          <h2 className="text-2xl font-semibold tracking-wide text-slate-900">Connexion à votre espace</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-700">
             {mode === 'login'
               ? 'Identifie-toi pour accéder à ton espace.'
               : 'Crée ton compte professeur. Un administrateur attribuera ta matière.'}
           </p>
-          <div className="mt-4 inline-flex overflow-hidden rounded-xl ring-1 ring-slate-300">
+          <div className="mt-4 inline-flex overflow-hidden rounded-md border border-slate-300">
             <button
               type="button"
               className={`px-3 py-1.5 text-xs font-semibold transition ${
-                mode === 'login' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
+                mode === 'login' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
               }`}
               onClick={() => setMode('login')}
             >
@@ -107,7 +107,7 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
             <button
               type="button"
               className={`px-3 py-1.5 text-xs font-semibold transition ${
-                mode === 'signup' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
+                mode === 'signup' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'
               }`}
               onClick={() => setMode('signup')}
             >
@@ -115,16 +115,16 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
             </button>
           </div>
           {localError ? (
-            <p className="mt-4 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-center text-sm text-rose-700">{localError}</p>
+            <p className="mt-4 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-center text-sm text-rose-700">{localError}</p>
           ) : null}
           {errorMessage ? (
-            <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-3 py-2 text-center text-sm text-rose-700">
+            <div className="mt-4 flex items-center justify-center gap-2 rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-center text-sm text-rose-700">
               <AlertTriangleIcon />
               <p>{errorMessage}</p>
             </div>
           ) : null}
           {infoMessage ? (
-            <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{infoMessage}</p>
+            <p className="mt-4 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{infoMessage}</p>
           ) : null}
 
           <form className="mt-5 space-y-4" onSubmit={(event) => void handleSubmit(event)}>
@@ -135,7 +135,7 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
                   <MailIcon />
                 </span>
               <input
-                className="w-full rounded-2xl border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm"
+                className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm"
                 type="email"
                 placeholder="Email"
                 value={email}
@@ -152,7 +152,7 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
                   <LockIcon />
                 </span>
               <input
-                className="w-full rounded-2xl border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm"
+                className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm"
                 type="password"
                 placeholder="Mot de passe"
                 value={password}
@@ -169,7 +169,7 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
                     <LockIcon />
                   </span>
                 <input
-                  className="w-full rounded-2xl border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm"
                   type="password"
                   placeholder="Confirmer le mot de passe"
                   value={confirmPassword}
@@ -181,7 +181,7 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
             ) : null}
 
             <button
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-indigo-500 hover:shadow-lg hover:shadow-indigo-300/40 disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-slate-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isSubmitting}
             >
               {isSubmitting ? (
