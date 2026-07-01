@@ -63,9 +63,9 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
   }
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-4 py-8 sm:px-6 lg:px-8">
+    <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center bg-slate-50 px-4 py-8 sm:px-6 lg:px-8">
       <section className="grid w-full max-w-4xl overflow-hidden rounded-xl border border-slate-300 bg-white shadow-lg shadow-slate-300/30 md:grid-cols-2">
-        <div className="bg-gradient-to-b from-slate-900 to-slate-800 p-8 text-white">
+        <div className="bg-gradient-to-b from-slate-900 via-slate-800 to-slate-800 p-8 text-white">
           <div className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-1.5 text-xs ring-1 ring-white/20">
             <span className="relative block h-4 w-6 overflow-hidden rounded-sm ring-1 ring-black/20">
               <span className="absolute inset-y-0 left-0 w-2/5 bg-[#008751]" />
@@ -76,8 +76,13 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
             </span>
             République du Bénin
           </div>
-          <h1 className="mt-6 text-3xl font-bold leading-tight tracking-wide">CEG 5 DOGBO</h1>
-          <p className="mt-3 text-base leading-relaxed text-slate-100">
+          <p className="mt-5 text-[11px] uppercase tracking-[0.16em] text-slate-300">
+            Ministère des Enseignements Secondaires
+          </p>
+          <h1 className="mt-2 font-serif text-3xl font-bold leading-tight tracking-wide">CEG 5 DOGBO</h1>
+          <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-amber-200">Discipline - Travail - Progrès</p>
+          <div className="mt-5 h-px w-full bg-white/20" />
+          <p className="mt-5 text-base leading-relaxed text-slate-100">
             Plateforme de gestion scolaire sécurisée pour les administrateurs et les professeurs.
           </p>
           <ul className="mt-6 space-y-2 text-sm text-slate-200">
@@ -85,10 +90,14 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
             <li>• Accès professeur limité à sa matière</li>
             <li>• Notes protégées par RLS Supabase</li>
           </ul>
+          <div className="mt-7 rounded-md border border-white/20 bg-white/5 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-slate-200">
+            Portail académique institutionnel
+          </div>
         </div>
 
         <div className="p-8">
-          <h2 className="text-2xl font-semibold tracking-wide text-slate-900">Connexion à votre espace</h2>
+          <p className="text-[11px] uppercase tracking-[0.14em] text-slate-500">Accès sécurisé</p>
+          <h2 className="mt-1 font-serif text-2xl font-semibold tracking-wide text-slate-900">Connexion à votre espace</h2>
           <p className="mt-2 text-sm leading-relaxed text-slate-700">
             {mode === 'login'
               ? 'Identifie-toi pour accéder à ton espace.'
@@ -135,7 +144,7 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
                   <MailIcon />
                 </span>
               <input
-                className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm"
+                className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm transition focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
                 type="email"
                 placeholder="Email"
                 value={email}
@@ -152,7 +161,7 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
                   <LockIcon />
                 </span>
               <input
-                className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm"
+                className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm transition focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
                 type="password"
                 placeholder="Mot de passe"
                 value={password}
@@ -169,7 +178,7 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
                     <LockIcon />
                   </span>
                 <input
-                  className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-11 pr-3 text-sm shadow-sm transition focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
                   type="password"
                   placeholder="Confirmer le mot de passe"
                   value={confirmPassword}
