@@ -1994,7 +1994,7 @@ function App() {
                                       }))
                                     }
                                   />
-                                  Abs
+                                  Absente
                                 </label>
                               </div>
                             </td>
@@ -2020,7 +2020,7 @@ function App() {
             {massEntryMode && (
               <div className="space-y-3 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4">
                 <p className="text-sm font-medium text-indigo-900">
-                  Mode saisie de masse (clavier): Entrée/Flèche bas = ligne suivante, Flèche haut = ligne précédente.
+                  Mode de saisie de masse (clavier) : Entrée/Flèche bas = ligne suivante, Flèche haut = ligne précédente.
                 </p>
                 <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   <label className="space-y-1">

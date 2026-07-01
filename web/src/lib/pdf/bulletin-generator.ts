@@ -54,9 +54,9 @@ export function generateBulletinPdf(payload: BulletinPayload): void {
   doc.rect(10, 10, 120, 18)
   doc.rect(130, 10, 70, 18)
   doc.setFont('times', 'bold')
-  doc.text('REPUBLIQUE DU BENIN', 12, 15)
+  doc.text('RÉPUBLIQUE DU BÉNIN', 12, 15)
   doc.setFont('times', 'normal')
-  doc.text('MINISTERE DES ENSEIGNEMENTS SECONDAIRES', 12, 19.5)
+  doc.text('MINISTÈRE DES ENSEIGNEMENTS SECONDAIRES', 12, 19.5)
   doc.text('CEG 5 DOGBO', 12, 24)
   doc.setFont('times', 'bold')
   doc.setFontSize(14)
@@ -163,9 +163,9 @@ export function generateBulletinPdf(payload: BulletinPayload): void {
   doc.text(`Absences: ${payload.absences ?? 0}`, 75, blocksY + 10)
   doc.text(`Retards: ${payload.retards ?? 0}`, 75, blocksY + 15)
 
-  doc.text(`Moyenne: ${fmt(payload.average)} / 20`, 138, blocksY + 10)
+  doc.text(`Moyenne : ${fmt(payload.average)} / 20`, 138, blocksY + 10)
   doc.text(`Rang: ${payload.rank ?? '-'}`, 138, blocksY + 15)
-  doc.text(`Politique: ${payload.missingPolicy === 'ignore' ? 'Ignore' : 'Zero'}`, 138, blocksY + 20)
+  doc.text(`Politique : ${payload.missingPolicy === 'ignore' ? 'Ignorer' : 'Zéro'}`, 138, blocksY + 20)
 
   // Decisions
   const decisionY = blocksY + 26
