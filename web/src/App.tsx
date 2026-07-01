@@ -225,7 +225,9 @@ function App() {
   const [massClassId, setMassClassId] = useState('cls-1')
   const [massSubjectId, setMassSubjectId] = useState('sub-1')
   const [massPeriod, setMassPeriod] = useState<Period>('S1')
-  const [massAssessmentType, setMassAssessmentType] = useState<AssessmentType>('Interrogation')
+  const [massModeType, setMassModeType] = useState<'interro' | 'devoir'>('interro')
+  const [massInterroStep, setMassInterroStep] = useState(1)
+  const [massDevoirStep, setMassDevoirStep] = useState(1)
   const [massGrades, setMassGrades] = useState<Record<string, string>>({})
   const massInputRefs = useRef<Array<HTMLInputElement | null>>([])
 
@@ -738,6 +740,12 @@ function App() {
     () => students.filter((student) => student.classId === massClassId),
     [students, massClassId],
   )
+  const expectedMassInterrogations = useMemo(
+    () => Math.max(1, interrogationsPerSubject[massSubjectId] ?? 2),
+    [interrogationsPerSubject, massSubjectId],
+  )
+  const selectedMassAssessmentType: AssessmentType = massModeType === 'interro' ? 'Interrogation' : 'Devoir'
+  const selectedMassSlotIndex = massModeType === 'interro' ? massInterroStep : massDevoirStep
 
   useEffect(() => {
     if (classes.length > 0 && !classes.some((item) => item.id === massClassId)) {
@@ -752,21 +760,37 @@ function App() {
   }, [subjects, massSubjectId])
 
   useEffect(() => {
+    setMassInterroStep((prev) => Math.max(1, Math.min(expectedMassInterrogations, prev)))
+  }, [expectedMassInterrogations])
+
+  useEffect(() => {
+    setMassDevoirStep((prev) => Math.max(1, Math.min(2, prev)))
+  }, [massModeType, massSubjectId, massPeriod])
+
+  useEffect(() => {
     if (!massClassId || !massSubjectId) return
     const nextGrades: Record<string, string> = {}
     massStudents.forEach((student) => {
-      const existing = grades.find(
-        (row) =>
-          row.studentId === student.id &&
-          row.subjectId === massSubjectId &&
-          row.period === massPeriod &&
-          row.assessmentType === massAssessmentType,
+      const existing = getAssessmentSlotGrade(
+        student.id,
+        massSubjectId,
+        massPeriod,
+        selectedMassAssessmentType,
+        selectedMassSlotIndex,
       )
       nextGrades[student.id] = existing?.grade === null || existing?.grade === undefined ? '' : String(existing.grade)
     })
     massInputRefs.current = []
     setMassGrades(nextGrades)
-  }, [grades, massAssessmentType, massClassId, massPeriod, massStudents, massSubjectId])
+  }, [
+    grades,
+    massClassId,
+    massPeriod,
+    massStudents,
+    massSubjectId,
+    selectedMassAssessmentType,
+    selectedMassSlotIndex,
+  ])
 
   async function addClass(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -1025,6 +1049,23 @@ function App() {
     }
   }
 
+  function getAssessmentSlotGrade(
+    studentId: string,
+    subjectId: string,
+    period: Period,
+    assessmentType: AssessmentType,
+    slotIndex: number,
+  ): GradeItem | undefined {
+    const values = grades.filter(
+      (row) =>
+        row.studentId === studentId &&
+        row.subjectId === subjectId &&
+        row.period === period &&
+        row.assessmentType === assessmentType,
+    )
+    return values[slotIndex - 1]
+  }
+
   function handleMassCellNavigation(event: KeyboardEvent<HTMLInputElement>, rowIndex: number): void {
     if (event.key !== 'Enter' && event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
     event.preventDefault()
@@ -1040,6 +1081,14 @@ function App() {
     const client = supabase
     if (massStudents.length === 0) {
       setActionMessage('Aucun élève dans cette classe.')
+      return
+    }
+    if (massModeType === 'interro' && (massInterroStep < 1 || massInterroStep > expectedMassInterrogations)) {
+      setActionMessage(`Choisis une interrogation valide entre 1 et ${expectedMassInterrogations}.`)
+      return
+    }
+    if (massModeType === 'devoir' && (massDevoirStep < 1 || massDevoirStep > 2)) {
+      setActionMessage('Choisis un devoir valide: 1 ou 2.')
       return
     }
 
@@ -1060,12 +1109,12 @@ function App() {
         return
       }
 
-      const existing = grades.find(
-        (row) =>
-          row.studentId === student.id &&
-          row.subjectId === massSubjectId &&
-          row.period === massPeriod &&
-          row.assessmentType === massAssessmentType,
+      const existing = getAssessmentSlotGrade(
+        student.id,
+        massSubjectId,
+        massPeriod,
+        selectedMassAssessmentType,
+        selectedMassSlotIndex,
       )
 
       if (existing) {
@@ -1075,7 +1124,7 @@ function App() {
           student_id: student.id,
           subject_id: massSubjectId,
           period: massPeriod,
-          assessment_label: massAssessmentType,
+          assessment_label: selectedMassAssessmentType,
           grade: parsed,
         })
       }
@@ -1098,7 +1147,11 @@ function App() {
       }
 
       await loadRemoteData(selectedPeriod)
-      setActionMessage(`Saisie de masse enregistrée (${massStudents.length} élèves).`)
+      setActionMessage(
+        `Saisie de masse enregistrée (${massStudents.length} élèves) - ${
+          massModeType === 'interro' ? `Interrogation ${selectedMassSlotIndex}` : `Devoir ${selectedMassSlotIndex}`
+        }.`,
+      )
     } catch (error) {
       setActionMessage(`Erreur saisie de masse: ${getErrorMessage(error)}`)
     } finally {
@@ -1969,7 +2022,7 @@ function App() {
                 <p className="text-sm font-medium text-indigo-900">
                   Mode saisie de masse (clavier): Entrée/Flèche bas = ligne suivante, Flèche haut = ligne précédente.
                 </p>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                   <label className="space-y-1">
                     <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Classe</span>
                     <select className={formControlClass} value={massClassId} onChange={(event) => setMassClassId(event.target.value)}>
@@ -2000,21 +2053,84 @@ function App() {
                       ))}
                     </select>
                   </label>
-                  <label className="space-y-1">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Type</span>
-                    <select
-                      className={formControlClass}
-                      value={massAssessmentType}
-                      onChange={(event) => setMassAssessmentType(event.target.value as AssessmentType)}
-                    >
-                      {assessmentTypeOptions.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
                 </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+                    <h4 className="text-sm font-semibold text-indigo-900">Interrogations (entrée en masse)</h4>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      <label className="space-y-1">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Nombre d'interrogations</span>
+                        <input
+                          className={formControlClass}
+                          type="number"
+                          min="1"
+                          max="12"
+                          value={String(expectedMassInterrogations)}
+                          onChange={(event) =>
+                            setInterrogationsPerSubject((prev) => ({
+                              ...prev,
+                              [massSubjectId]: Math.max(1, Math.min(12, Number(event.target.value) || 1)),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="space-y-1">
+                        <span className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Interro n°</span>
+                        <select
+                          className={formControlClass}
+                          value={massInterroStep}
+                          onChange={(event) => {
+                            setMassModeType('interro')
+                            setMassInterroStep(Number(event.target.value))
+                          }}
+                        >
+                          {Array.from({ length: expectedMassInterrogations }, (_, index) => (
+                            <option key={`interro-step-${index + 1}`} value={index + 1}>
+                              Interrogation {index + 1}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      className="mt-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500"
+                      onClick={() => setMassModeType('interro')}
+                    >
+                      Saisir cette interrogation dans la grille
+                    </button>
+                  </section>
+
+                  <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                    <h4 className="text-sm font-semibold text-emerald-900">Devoirs (2 fixes, entrée en masse)</h4>
+                    <label className="mt-2 block space-y-1">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Devoir n°</span>
+                      <select
+                        className={formControlClass}
+                        value={massDevoirStep}
+                        onChange={(event) => {
+                          setMassModeType('devoir')
+                          setMassDevoirStep(Number(event.target.value))
+                        }}
+                      >
+                        <option value={1}>Devoir 1</option>
+                        <option value={2}>Devoir 2</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      className="mt-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
+                      onClick={() => setMassModeType('devoir')}
+                    >
+                      Saisir ce devoir dans la grille
+                    </button>
+                  </section>
+                </div>
+
+                <p className="text-xs font-semibold text-slate-700">
+                  Grille active: {massModeType === 'interro' ? `Interrogation ${massInterroStep}` : `Devoir ${massDevoirStep}`}
+                </p>
 
                 <div
                   className="overflow-x-auto rounded-xl border border-slate-300 bg-white"
