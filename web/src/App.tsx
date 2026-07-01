@@ -214,6 +214,9 @@ function App() {
   const [newGradeSubjectId, setNewGradeSubjectId] = useState('sub-1')
   const [newGradePeriod, setNewGradePeriod] = useState<Period>('S1')
   const [interrogationsPerSubject, setInterrogationsPerSubject] = useState<Record<string, number>>({})
+  const [interrogationCountDraft, setInterrogationCountDraft] = useState('2')
+  const [interroPlanValidated, setInterroPlanValidated] = useState(false)
+  const [devoirPlanValidated, setDevoirPlanValidated] = useState(false)
   const [interroGradeValue, setInterroGradeValue] = useState('10')
   const [interroMissing, setInterroMissing] = useState(false)
   const [devoirGradeValue, setDevoirGradeValue] = useState('10')
@@ -427,6 +430,11 @@ function App() {
   }, [subjects, newGradeSubjectId])
 
   useEffect(() => {
+    setInterroPlanValidated(false)
+    setDevoirPlanValidated(false)
+  }, [newGradeStudentId, newGradeSubjectId, newGradePeriod])
+
+  useEffect(() => {
     try {
       const raw = window.localStorage.getItem(interrogationSettingsStorageKey)
       if (!raw) return
@@ -537,6 +545,7 @@ function App() {
     () => Math.max(1, interrogationsPerSubject[newGradeSubjectId] ?? 2),
     [interrogationsPerSubject, newGradeSubjectId],
   )
+  const nextInterrogationIndex = Math.min(currentInterrogationCount + 1, expectedInterrogations)
   const currentDevoirCount = useMemo(
     () =>
       grades.filter(
@@ -548,6 +557,11 @@ function App() {
       ).length,
     [grades, newGradePeriod, newGradeStudentId, newGradeSubjectId],
   )
+  const nextDevoirIndex = Math.min(currentDevoirCount + 1, 2)
+
+  useEffect(() => {
+    setInterrogationCountDraft(String(expectedInterrogations))
+  }, [expectedInterrogations])
 
   function buildSemesterReportLines(studentId: string, period: Period): SemesterReportLine[] {
     const lines = subjects.map((subject) => {
@@ -1125,6 +1139,10 @@ function App() {
 
   async function addInterrogationNote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!interroPlanValidated) {
+      setActionMessage("Valide d'abord le nombre d'interrogations.")
+      return
+    }
     if (currentInterrogationCount >= expectedInterrogations) {
       setActionMessage(`Le nombre maximal d'interrogations (${expectedInterrogations}) est déjà atteint.`)
       return
@@ -1136,6 +1154,10 @@ function App() {
 
   async function addDevoirNote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!devoirPlanValidated) {
+      setActionMessage("Valide d'abord la série de devoirs.")
+      return
+    }
     if (currentDevoirCount >= 2) {
       setActionMessage("Le nombre de devoirs est fixe à 2 pour cette matière.")
       return
@@ -1143,6 +1165,18 @@ function App() {
     await addGradeEntry('Devoir', devoirGradeValue, devoirMissing)
     setDevoirGradeValue('10')
     setDevoirMissing(false)
+  }
+
+  function validateInterrogationPlan(): void {
+    const parsed = Math.max(1, Math.min(12, Number(interrogationCountDraft) || 1))
+    setInterrogationsPerSubject((prev) => ({ ...prev, [newGradeSubjectId]: parsed }))
+    setInterroPlanValidated(true)
+    setActionMessage(`Nombre d'interrogations validé: ${parsed}. Saisie unitaire activée.`)
+  }
+
+  function validateDevoirPlan(): void {
+    setDevoirPlanValidated(true)
+    setActionMessage('Série des 2 devoirs validée. Saisie unitaire activée.')
   }
 
   async function updateGrade(gradeId: string) {
@@ -1681,7 +1715,7 @@ function App() {
                           Saisies: {currentInterrogationCount} / {expectedInterrogations}
                         </span>
                       </div>
-                      <form className="grid gap-2" onSubmit={(event) => void addInterrogationNote(event)}>
+                      <div className="grid gap-2">
                         <label className="space-y-1">
                           <span className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Nombre d'interrogations</span>
                           <input
@@ -1689,41 +1723,53 @@ function App() {
                             type="number"
                             min="1"
                             max="12"
-                            value={String(expectedInterrogations)}
-                            onChange={(event) =>
-                              setInterrogationsPerSubject((prev) => ({
-                                ...prev,
-                                [newGradeSubjectId]: Math.max(1, Math.min(12, Number(event.target.value) || 1)),
-                              }))
-                            }
+                            value={interrogationCountDraft}
+                            onChange={(event) => setInterrogationCountDraft(event.target.value)}
                           />
                         </label>
-                        <label className="space-y-1">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Note d'interrogation</span>
-                          <input
-                            className={formControlClass}
-                            type="number"
-                            min="0"
-                            max="20"
-                            step="0.25"
-                            value={interroGradeValue}
-                            onChange={(event) => setInterroGradeValue(event.target.value)}
-                            disabled={interroMissing}
-                          />
-                        </label>
-                        <label className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-700">
-                          <input
-                            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                            type="checkbox"
-                            checked={interroMissing}
-                            onChange={(event) => setInterroMissing(event.target.checked)}
-                          />
-                          Absente
-                        </label>
-                        <button className={primaryButtonClass} disabled={submitting}>
-                          Ajouter interrogation
+                        <button
+                          type="button"
+                          className={primaryButtonClass}
+                          onClick={validateInterrogationPlan}
+                          disabled={submitting}
+                        >
+                          Valider le nombre d'interrogations
                         </button>
-                      </form>
+                        {interroPlanValidated ? (
+                          <form className="grid gap-2 rounded-xl border border-indigo-200 bg-white p-2" onSubmit={(event) => void addInterrogationNote(event)}>
+                            <p className="text-xs font-semibold text-indigo-700">
+                              Saisie unitaire: Interrogation {nextInterrogationIndex} / {expectedInterrogations}
+                            </p>
+                            <label className="space-y-1">
+                              <span className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Note d'interrogation</span>
+                              <input
+                                className={formControlClass}
+                                type="number"
+                                min="0"
+                                max="20"
+                                step="0.25"
+                                value={interroGradeValue}
+                                onChange={(event) => setInterroGradeValue(event.target.value)}
+                                disabled={interroMissing}
+                              />
+                            </label>
+                            <label className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-700">
+                              <input
+                                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                type="checkbox"
+                                checked={interroMissing}
+                                onChange={(event) => setInterroMissing(event.target.checked)}
+                              />
+                              Absente
+                            </label>
+                            <button className={primaryButtonClass} disabled={submitting || currentInterrogationCount >= expectedInterrogations}>
+                              Ajouter interrogation
+                            </button>
+                          </form>
+                        ) : (
+                          <p className="text-xs text-indigo-700">Valide d'abord le nombre, puis saisis les notes une à une.</p>
+                        )}
+                      </div>
                     </section>
 
                     <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
@@ -1732,33 +1778,48 @@ function App() {
                         <span className="text-xs text-emerald-700">Nombre de devoirs: 2 (fixe)</span>
                       </div>
                       <p className="mb-2 text-xs text-emerald-700">Saisies: {currentDevoirCount} / 2</p>
-                      <form className="grid gap-2" onSubmit={(event) => void addDevoirNote(event)}>
-                        <label className="space-y-1">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Note de devoir</span>
-                          <input
-                            className={formControlClass}
-                            type="number"
-                            min="0"
-                            max="20"
-                            step="0.25"
-                            value={devoirGradeValue}
-                            onChange={(event) => setDevoirGradeValue(event.target.value)}
-                            disabled={devoirMissing}
-                          />
-                        </label>
-                        <label className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-700">
-                          <input
-                            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                            type="checkbox"
-                            checked={devoirMissing}
-                            onChange={(event) => setDevoirMissing(event.target.checked)}
-                          />
-                          Absente
-                        </label>
-                        <button className={primaryButtonClass} disabled={submitting}>
-                          Ajouter devoir
+                      <div className="grid gap-2">
+                        <button
+                          type="button"
+                          className={primaryButtonClass}
+                          onClick={validateDevoirPlan}
+                          disabled={submitting}
+                        >
+                          Valider les devoirs (2)
                         </button>
-                      </form>
+                        {devoirPlanValidated ? (
+                          <form className="grid gap-2 rounded-xl border border-emerald-200 bg-white p-2" onSubmit={(event) => void addDevoirNote(event)}>
+                            <p className="text-xs font-semibold text-emerald-700">Saisie unitaire: Devoir {nextDevoirIndex} / 2</p>
+                            <label className="space-y-1">
+                              <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Note de devoir</span>
+                              <input
+                                className={formControlClass}
+                                type="number"
+                                min="0"
+                                max="20"
+                                step="0.25"
+                                value={devoirGradeValue}
+                                onChange={(event) => setDevoirGradeValue(event.target.value)}
+                                disabled={devoirMissing}
+                              />
+                            </label>
+                            <label className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-700">
+                              <input
+                                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                type="checkbox"
+                                checked={devoirMissing}
+                                onChange={(event) => setDevoirMissing(event.target.checked)}
+                              />
+                              Absente
+                            </label>
+                            <button className={primaryButtonClass} disabled={submitting || currentDevoirCount >= 2}>
+                              Ajouter devoir
+                            </button>
+                          </form>
+                        ) : (
+                          <p className="text-xs text-emerald-700">Valide d'abord la série des 2 devoirs, puis saisis-les un à un.</p>
+                        )}
+                      </div>
                     </section>
                   </div>
                 </div>
