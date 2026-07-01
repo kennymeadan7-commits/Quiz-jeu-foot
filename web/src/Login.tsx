@@ -77,7 +77,7 @@ function Login({ isSubmitting, errorMessage, infoMessage, onLogin, onSignup }: L
             République du Bénin
           </div>
           <p className="mt-5 text-[11px] uppercase tracking-[0.16em] text-slate-300">
-            Ministère des Enseignements Secondaires
+            Ministère des Enseignements Secondaire, Technique et de la Formation Professionnelle
           </p>
           <h1 className="mt-2 font-serif text-3xl font-bold leading-tight tracking-wide">CEG 5 DOGBO</h1>
           <p className="mt-1 text-[11px] uppercase tracking-[0.16em] text-amber-200">Discipline - Travail - Progrès</p>
