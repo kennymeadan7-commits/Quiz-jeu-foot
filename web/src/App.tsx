@@ -212,9 +212,11 @@ function App() {
   const [newGradeStudentId, setNewGradeStudentId] = useState('std-1')
   const [newGradeSubjectId, setNewGradeSubjectId] = useState('sub-1')
   const [newGradePeriod, setNewGradePeriod] = useState<Period>('S1')
-  const [newGradeAssessmentType, setNewGradeAssessmentType] = useState<AssessmentType>('Interrogation')
-  const [newGradeValue, setNewGradeValue] = useState('10')
-  const [newGradeMissing, setNewGradeMissing] = useState(false)
+  const [interrogationCount, setInterrogationCount] = useState('2')
+  const [interroGradeValue, setInterroGradeValue] = useState('10')
+  const [interroMissing, setInterroMissing] = useState(false)
+  const [devoirGradeValue, setDevoirGradeValue] = useState('10')
+  const [devoirMissing, setDevoirMissing] = useState(false)
   const [massEntryMode, setMassEntryMode] = useState(false)
   const [massClassId, setMassClassId] = useState('cls-1')
   const [massSubjectId, setMassSubjectId] = useState('sub-1')
@@ -497,6 +499,28 @@ function App() {
 
   const headlineAverage = dashboardClassAverages.length > 0 ? `${dashboardClassAverages[0].class_average.toFixed(2)} / 20` : '-- / 20'
   const missingNotesCount = grades.filter((grade) => grade.grade === null).length
+  const currentInterrogationCount = useMemo(
+    () =>
+      grades.filter(
+        (grade) =>
+          grade.studentId === newGradeStudentId &&
+          grade.subjectId === newGradeSubjectId &&
+          grade.period === newGradePeriod &&
+          grade.assessmentType === 'Interrogation',
+      ).length,
+    [grades, newGradePeriod, newGradeStudentId, newGradeSubjectId],
+  )
+  const currentDevoirCount = useMemo(
+    () =>
+      grades.filter(
+        (grade) =>
+          grade.studentId === newGradeStudentId &&
+          grade.subjectId === newGradeSubjectId &&
+          grade.period === newGradePeriod &&
+          grade.assessmentType === 'Devoir',
+      ).length,
+    [grades, newGradePeriod, newGradeStudentId, newGradeSubjectId],
+  )
 
   function buildSemesterReportLines(studentId: string, period: Period): SemesterReportLine[] {
     const lines = subjects.map((subject) => {
@@ -1041,11 +1065,14 @@ function App() {
     }
   }
 
-  async function addGrade(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function addGradeEntry(
+    assessmentType: AssessmentType,
+    gradeValue: string,
+    isMissing: boolean,
+  ): Promise<void> {
     if (!newGradeStudentId || !newGradeSubjectId || !supabase) return
-    const numericValue = Number(newGradeValue)
-    const isValid = newGradeMissing || (!Number.isNaN(numericValue) && numericValue >= 0 && numericValue <= 20)
+    const numericValue = Number(gradeValue)
+    const isValid = isMissing || (!Number.isNaN(numericValue) && numericValue >= 0 && numericValue <= 20)
     if (!isValid) {
       setActionMessage('La note doit être entre 0 et 20.')
       return
@@ -1056,20 +1083,40 @@ function App() {
         student_id: newGradeStudentId,
         subject_id: newGradeSubjectId,
         period: newGradePeriod,
-        assessment_label: newGradeAssessmentType,
-        grade: newGradeMissing ? null : numericValue,
+        assessment_label: assessmentType,
+        grade: isMissing ? null : numericValue,
       })
       if (error) throw error
       await loadRemoteData(selectedPeriod)
-      setActionMessage('Note ajoutée.')
-      setNewGradeValue('10')
-      setNewGradeMissing(false)
-      setNewGradeAssessmentType('Interrogation')
+      setActionMessage(`${assessmentType} ajoutée.`)
     } catch (error) {
       setActionMessage(`Erreur ajout note: ${getErrorMessage(error)}`)
     } finally {
       setSubmitting(false)
     }
+  }
+
+  async function addInterrogationNote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const expectedInterrogations = Math.max(1, Number(interrogationCount) || 1)
+    if (currentInterrogationCount >= expectedInterrogations) {
+      setActionMessage(`Le nombre maximal d'interrogations (${expectedInterrogations}) est déjà atteint.`)
+      return
+    }
+    await addGradeEntry('Interrogation', interroGradeValue, interroMissing)
+    setInterroGradeValue('10')
+    setInterroMissing(false)
+  }
+
+  async function addDevoirNote(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (currentDevoirCount >= 2) {
+      setActionMessage("Le nombre de devoirs est fixe à 2 pour cette matière.")
+      return
+    }
+    await addGradeEntry('Devoir', devoirGradeValue, devoirMissing)
+    setDevoirGradeValue('10')
+    setDevoirMissing(false)
   }
 
   async function updateGrade(gradeId: string) {
@@ -1554,95 +1601,136 @@ function App() {
             {!massEntryMode && (
               <>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Saisie individuelle</h3>
-                <form
-                  className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 md:grid-cols-2 xl:grid-cols-4"
-                  onSubmit={(event) => void addGrade(event)}
-                >
-              <label className="space-y-1">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Élève</span>
-                <select
-                  className={formControlClass}
-                  value={newGradeStudentId}
-                  onChange={(event) => setNewGradeStudentId(event.target.value)}
-                >
-                  {students.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.firstName} {item.lastName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Matière</span>
-                <select
-                  className={formControlClass}
-                  value={newGradeSubjectId}
-                  onChange={(event) => setNewGradeSubjectId(event.target.value)}
-                >
-                  {subjects.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Semestre</span>
-                <select
-                  className={formControlClass}
-                  value={newGradePeriod}
-                  onChange={(event) => setNewGradePeriod(event.target.value as Period)}
-                >
-                  {periodOptions.map((period) => (
-                    <option key={period.value} value={period.value}>
-                      {period.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Type</span>
-                <select
-                  className={formControlClass}
-                  value={newGradeAssessmentType}
-                  onChange={(event) => setNewGradeAssessmentType(event.target.value as AssessmentType)}
-                >
-                  {assessmentTypeOptions.map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Note /20</span>
-                <input
-                  className={formControlClass}
-                  type="number"
-                  min="0"
-                  max="20"
-                  step="0.25"
-                  placeholder="Ex: 14.5"
-                  value={newGradeValue}
-                  onChange={(event) => setNewGradeValue(event.target.value)}
-                  disabled={newGradeMissing}
-                />
-              </label>
-              <label className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm">
-                <input
-                  className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                  type="checkbox"
-                  checked={newGradeMissing}
-                  onChange={(event) => setNewGradeMissing(event.target.checked)}
-                />
-                Absente
-              </label>
-              <div className="xl:col-span-2 xl:flex xl:items-end">
-                <button className={`${primaryButtonClass} w-full xl:w-auto`} disabled={submitting}>
-                  {submitting ? 'Traitement...' : 'Ajouter note'}
-                </button>
-              </div>
-                </form>
+                <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <label className="space-y-1">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Élève</span>
+                      <select
+                        className={formControlClass}
+                        value={newGradeStudentId}
+                        onChange={(event) => setNewGradeStudentId(event.target.value)}
+                      >
+                        {students.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.firstName} {item.lastName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Matière</span>
+                      <select
+                        className={formControlClass}
+                        value={newGradeSubjectId}
+                        onChange={(event) => setNewGradeSubjectId(event.target.value)}
+                      >
+                        {subjects.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-1">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">Semestre</span>
+                      <select
+                        className={formControlClass}
+                        value={newGradePeriod}
+                        onChange={(event) => setNewGradePeriod(event.target.value as Period)}
+                      >
+                        {periodOptions.map((period) => (
+                          <option key={period.value} value={period.value}>
+                            {period.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <section className="rounded-xl border border-indigo-200 bg-indigo-50 p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-indigo-900">Interrogations</h4>
+                        <span className="text-xs text-indigo-700">
+                          Saisies: {currentInterrogationCount} / {Math.max(1, Number(interrogationCount) || 1)}
+                        </span>
+                      </div>
+                      <form className="grid gap-2" onSubmit={(event) => void addInterrogationNote(event)}>
+                        <label className="space-y-1">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Nombre d'interrogations</span>
+                          <input
+                            className={formControlClass}
+                            type="number"
+                            min="1"
+                            max="12"
+                            value={interrogationCount}
+                            onChange={(event) => setInterrogationCount(event.target.value)}
+                          />
+                        </label>
+                        <label className="space-y-1">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Note d'interrogation</span>
+                          <input
+                            className={formControlClass}
+                            type="number"
+                            min="0"
+                            max="20"
+                            step="0.25"
+                            value={interroGradeValue}
+                            onChange={(event) => setInterroGradeValue(event.target.value)}
+                            disabled={interroMissing}
+                          />
+                        </label>
+                        <label className="flex items-center gap-2 rounded-xl border border-indigo-200 bg-white px-3 py-2 text-sm text-slate-700">
+                          <input
+                            className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                            type="checkbox"
+                            checked={interroMissing}
+                            onChange={(event) => setInterroMissing(event.target.checked)}
+                          />
+                          Absente
+                        </label>
+                        <button className={primaryButtonClass} disabled={submitting}>
+                          Ajouter interrogation
+                        </button>
+                      </form>
+                    </section>
+
+                    <section className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-emerald-900">Devoirs</h4>
+                        <span className="text-xs text-emerald-700">Nombre de devoirs: 2 (fixe)</span>
+                      </div>
+                      <p className="mb-2 text-xs text-emerald-700">Saisies: {currentDevoirCount} / 2</p>
+                      <form className="grid gap-2" onSubmit={(event) => void addDevoirNote(event)}>
+                        <label className="space-y-1">
+                          <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Note de devoir</span>
+                          <input
+                            className={formControlClass}
+                            type="number"
+                            min="0"
+                            max="20"
+                            step="0.25"
+                            value={devoirGradeValue}
+                            onChange={(event) => setDevoirGradeValue(event.target.value)}
+                            disabled={devoirMissing}
+                          />
+                        </label>
+                        <label className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-700">
+                          <input
+                            className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            type="checkbox"
+                            checked={devoirMissing}
+                            onChange={(event) => setDevoirMissing(event.target.checked)}
+                          />
+                          Absente
+                        </label>
+                        <button className={primaryButtonClass} disabled={submitting}>
+                          Ajouter devoir
+                        </button>
+                      </form>
+                    </section>
+                  </div>
+                </div>
 
                 <div className="overflow-x-auto rounded-xl border border-slate-200">
                   <table className="min-w-full divide-y divide-slate-200 text-sm">
