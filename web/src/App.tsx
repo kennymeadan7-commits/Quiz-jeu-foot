@@ -77,6 +77,7 @@ const tabRoutes: Record<Tab, string> = {
 
 const schoolName = 'CEG 5 DOGBO'
 const schoolYear = '2025-2026'
+const interrogationSettingsStorageKey = 'ceg5-interrogations-per-subject'
 const formControlClass =
   'w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200'
 const primaryButtonClass =
@@ -212,7 +213,7 @@ function App() {
   const [newGradeStudentId, setNewGradeStudentId] = useState('std-1')
   const [newGradeSubjectId, setNewGradeSubjectId] = useState('sub-1')
   const [newGradePeriod, setNewGradePeriod] = useState<Period>('S1')
-  const [interrogationCount, setInterrogationCount] = useState('2')
+  const [interrogationsPerSubject, setInterrogationsPerSubject] = useState<Record<string, number>>({})
   const [interroGradeValue, setInterroGradeValue] = useState('10')
   const [interroMissing, setInterroMissing] = useState(false)
   const [devoirGradeValue, setDevoirGradeValue] = useState('10')
@@ -425,6 +426,28 @@ function App() {
     }
   }, [subjects, newGradeSubjectId])
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(interrogationSettingsStorageKey)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as Record<string, number>
+      if (parsed && typeof parsed === 'object') {
+        const sanitized = Object.fromEntries(
+          Object.entries(parsed)
+            .filter(([, value]) => Number.isFinite(value))
+            .map(([key, value]) => [key, Math.max(1, Math.min(12, Math.round(value)))]),
+        )
+        setInterrogationsPerSubject(sanitized)
+      }
+    } catch {
+      // Ignore corrupted localStorage payload.
+    }
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem(interrogationSettingsStorageKey, JSON.stringify(interrogationsPerSubject))
+  }, [interrogationsPerSubject])
+
   const localStudentAverages = useMemo(() => {
     const rows: StudentAverageRow[] = []
     students.forEach((student) => {
@@ -509,6 +532,10 @@ function App() {
           grade.assessmentType === 'Interrogation',
       ).length,
     [grades, newGradePeriod, newGradeStudentId, newGradeSubjectId],
+  )
+  const expectedInterrogations = useMemo(
+    () => Math.max(1, interrogationsPerSubject[newGradeSubjectId] ?? 2),
+    [interrogationsPerSubject, newGradeSubjectId],
   )
   const currentDevoirCount = useMemo(
     () =>
@@ -1098,7 +1125,6 @@ function App() {
 
   async function addInterrogationNote(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    const expectedInterrogations = Math.max(1, Number(interrogationCount) || 1)
     if (currentInterrogationCount >= expectedInterrogations) {
       setActionMessage(`Le nombre maximal d'interrogations (${expectedInterrogations}) est déjà atteint.`)
       return
@@ -1652,7 +1678,7 @@ function App() {
                       <div className="mb-2 flex items-center justify-between">
                         <h4 className="text-sm font-semibold text-indigo-900">Interrogations</h4>
                         <span className="text-xs text-indigo-700">
-                          Saisies: {currentInterrogationCount} / {Math.max(1, Number(interrogationCount) || 1)}
+                          Saisies: {currentInterrogationCount} / {expectedInterrogations}
                         </span>
                       </div>
                       <form className="grid gap-2" onSubmit={(event) => void addInterrogationNote(event)}>
@@ -1663,8 +1689,13 @@ function App() {
                             type="number"
                             min="1"
                             max="12"
-                            value={interrogationCount}
-                            onChange={(event) => setInterrogationCount(event.target.value)}
+                            value={String(expectedInterrogations)}
+                            onChange={(event) =>
+                              setInterrogationsPerSubject((prev) => ({
+                                ...prev,
+                                [newGradeSubjectId]: Math.max(1, Math.min(12, Number(event.target.value) || 1)),
+                              }))
+                            }
                           />
                         </label>
                         <label className="space-y-1">
